@@ -1,9 +1,22 @@
 cmake_minimum_required(VERSION 2.8)
 
-include_directories(.)
+project(Taskmaster CXX)
 
-project(Taskmaster)
+set(CMAKE_BUILD_TYPE DEBUG)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+
+set(CMAKE_CXX_STANDARD 17)
+
+## RapidJSON
+find_package(RapidJSON REQUIRED)
+include_directories(${RAPIDJSON_INCLUDE_DIRS})
+
+#include_directories(.)
 add_executable(${PROJECT_NAME}
-               main.cpp
-               process.cpp
+               src/main.cpp
+               src/process.cpp
+               src/task.cpp
               )
+
+target_link_libraries(${PROJECT_NAME}
+                     )
