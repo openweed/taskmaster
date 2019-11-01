@@ -11,8 +11,23 @@
 #include "task.hpp"
 
 // XXX need copy and move constructors
-typedef struct task_config
+namespace tasks {
+
+const int              DEFAULT_NUMPROC = 1;
+const int              DEFAULT_MASK = 0655;
+const std::string      DEFAULT_WORKDIR = std::string("/");
+const bool             DEFAULT_AUTOSTART = false;
+const bool             DEFAULT_AUTORESTART = false;
+const std::vector<int> DEFAULT_EXIT_CODES = std::vector<int>({0});
+const size_t           DEFAULT_STARTRETRIES = 0;
+const time_t           DEFAULT_STARTTIME = 5;
+const int              DEFAULT_STOPSIG = SIGTERM;
+const time_t           DEFAULT_STOPTIME = 10;
+const std::string      DEFAULT_REDIR = std::string("/dev/null");
+
+struct task_config
 {
+public:
     task_config();
     std::string name;
     std::string bin;
@@ -31,19 +46,26 @@ typedef struct task_config
     std::string stdin_file;
     std::string stdout_file;
     std::string stderr_file;
-} task_config_t;
+};
 
 class task
 {
 public:
-    task(task_config_t &config);
+    task(task_config &config);
     void start();
     void stop();
-    int restart();
+    void restart();
+    bool update();
 private:
-    task_config_t config;
-    std::vector<process> procs;
+    enum {
+        STOPPED,
+        RUNNING
+    } state;
+    task_config config;
+    std::vector<proc::process> procs;
     pid_t pgid;
 };
+
+} // namespace tasks
 
 #endif // TASK_HPP
