@@ -7,6 +7,9 @@
 #include <unistd.h>
 
 #include <cstring>
+#include <functional>
+#include <thread>
+
 
 #include "process.hpp"
 
@@ -21,6 +24,7 @@ void process::basic_init()
 {
     state = DID_NOT_START;
     exitstatus = termsig = stopsig = 0;
+    stoptime = DEFAULT_STOPTIME;
     set_args(args);
     set_envs(envs);
 }
@@ -52,6 +56,7 @@ process& process::operator=(const process &other)
     stdin_file = other.stdin_file;
     stdout_file = other.stdout_file;
     stderr_file = other.stderr_file;
+    stoptime = stoptime;
     basic_init();
     return *this;
 }
@@ -60,8 +65,8 @@ process::process(process &&other) noexcept:
     bin(move(other.bin)), args(move(other.args)), envs(move(other.envs)),
     workdir(move(other.workdir)), stdin_file(move(other.stdin_file)),
     stdout_file(move(other.stdout_file)), stderr_file(move(other.stderr_file)),
-    state(other.state), pid(other.pid), exitstatus(other.exitstatus),
-    stopsig(other.stopsig), termsig(other.termsig)
+    stoptime(other.stoptime), state(other.state), pid(other.pid),
+    exitstatus(other.exitstatus), stopsig(other.stopsig), termsig(other.termsig)
 {
     cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     set_args(args);
@@ -81,6 +86,7 @@ process& process::operator=(process &&other) noexcept
     stdin_file = move(other.stdin_file);
     stdout_file = move(other.stdout_file);
     stderr_file = move(other.stderr_file);
+    stoptime = other.stoptime;
     pid = other.pid;
     state = other.state;
     exitstatus = other.exitstatus;
@@ -96,17 +102,21 @@ process& process::operator=(process &&other) noexcept
 
 pid_t process::start()
 {
-    update();
     if (is_launched()) return pid;
     if (access(bin.c_str(), X_OK)) return -errno;
 
     cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    if ((pid = fork())) {
+    static int again = 0;
+    if ((pid = fork()) > 0) {
         state = process::RUNNING;
+        again = 0;
         return pid;
     }
     if (pid == -1) {
-        if (errno == EAGAIN) return start();
+        if (errno == EAGAIN) {
+            ++again;
+            return start();
+        }
         return -errno;
     }
     apply_redir();
@@ -115,21 +125,32 @@ pid_t process::start()
     exit(1);
 }
 
-void process::stop(bool hard)
+void process::stop(int sig)
 {
     // If the process is not launched, then return
     if (!is_launched()) return;
-    signal(hard ? SIGKILL : SIGTERM);
-    update();
+    signal(sig);
+    state = process::TERMINATED;
+    if (sig == SIGKILL) {
+        waitpid(pid, nullptr, 0);
+        return;
+    }
+    std::function<void(pid_t, time_t)> termfunc = [](pid_t pid, time_t stoptime) {
+        sleep(stoptime);
+        kill(pid, SIGKILL);
+        waitpid(pid, nullptr, 0);
+    };
+    std::thread termthread(termfunc, pid, stoptime);
+    termthread.detach();
 }
 
 // Возвращает true если что то изменилось
-bool process::update()
+bool process::update(bool wait)
 {
     if (!is_launched()) return false;
     int status;
     pid_t res;
-    if (!(res = waitpid(pid, &status, WUNTRACED | WNOHANG)))
+    if (!(res = waitpid(pid, &status, wait ? 0 : (WUNTRACED | WNOHANG))))
         return false;
     if (res < 0) {
         exitstatus = 0;
@@ -144,7 +165,7 @@ bool process::update()
         exitstatus = WEXITSTATUS(status);
         state = process::EXITED;
     } else {
-        state = process::DID_NOT_START;
+        state = process::TERMINATED;
     }
     cout << "update state: " << state << endl;
     return true;
@@ -157,6 +178,21 @@ int process::signal(int sig)
         return ESRCH;
     }
     return kill(pid, sig);
+}
+
+bool process::is_exited()
+{
+    update();
+    return state == SIGNALED || state == EXITED;
+}
+bool process::is_running()
+{
+    update();
+    return (state == RUNNING);
+}
+bool process::is_launched()
+{
+    return (state == RUNNING) || (state == STOPPED);
 }
 
 void process::set_args(const std::vector<string> &arguments)

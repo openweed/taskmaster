@@ -1,41 +1,104 @@
 #include <iostream>
 #include <unistd.h>
+#include <getopt.h>
 #include <sys/wait.h>
 #include <rapidjson/rapidjson.h>
 
 //#include "process.hpp"
 #include "task.hpp"
 
+//Common defines
+const char *const shortopts = "+hdc";
+static const std::array<option, 5> longopts {
+    option({"help", no_argument, nullptr, 'h'}),
+    option({"daemon", no_argument, nullptr, 'd'}),
+    option({"cli", required_argument, nullptr, 'c'}),
+    option({"logfile", required_argument, nullptr, 1}),
+    option({nullptr, 0, nullptr, 0})
+};
+///
+
 using namespace std;
 
 using namespace proc;
 
-int main()
+string logfile;
+int as_daemon = 0;
+int as_cli = 0;
+
+void usage(const std::string &progname)
+{
+    cerr << "usage: " << progname << " [-h] [--logfile log_file] -d | --daemon" << endl;
+    cerr << "       " << progname << " [-h] [--logfile log_file] -c | --cli" << endl;
+    cerr << "       " << progname << " [-h] [--logfile log_file] -- cmd" << endl;
+}
+
+int parse_opt(int argc, char **argv)
+{
+    while (true) {
+        switch (getopt_long(argc, argv, shortopts, longopts.data(), nullptr)) {
+        case -1:
+            return 0;
+        case 1:                   // --logfile
+            logfile = optarg;
+            break;
+        case 'd':                 // -d, --daemon
+            as_cli = 0;
+            as_daemon = 1;
+            break;
+        case 'c':                 // -c, --cli
+            as_cli = 1;
+            as_daemon = 0;
+            break;
+        case '?':                 // -?, unknown option
+        default:
+        case 'h':                 // -h, --help
+            usage(argc ? *argv : "program");
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int main(int argc, char *argv[])
 {
     cout << "Hello World!" << endl;
 
+    parse_opt(argc, argv);
+    cout << "daemon:" << as_daemon << endl;
+    cout << "cli:" << as_cli << endl;
+    cout << "log:" << logfile << endl;
+
 //    process proc("/bin/ls");
 //    proc.set_args({"-l", "-R"});
-//    proc.set_workdir("/var/log");
+////    proc.set_workdir("/var/log");
+//    proc.set_workdir("/home/user");
 //    proc.set_redirection("", "/tmp/ls.out", "/tmp/ls.err");
 //    proc.start();
-//    sleep(1);
+//    sleep(2);
+//    proc.stop();
+//    cout << "Next" << endl;
 //    proc.start();
-//    proc.start();
-//    proc.start();
-    tasks::task_config config;
-    config.name = "ls";
-    config.bin = "/bin/ls";
-    config.args = {"-l", "-R"};
+//    while (proc.is_running()) proc.update();
+
+//    tasks::task_config config;
+//    config.name = "ls";
+//    config.bin = "/bin/ls";
+//    config.args = {"-l", "-R"};
 //    config.workdir = "/home/user";
-    config.workdir = "/var/log";
-    config.stdout_file = "/tmp/ls.out";
-    config.stderr_file = "/tmp/ls.err";
-//    config.numproc = 20;
+////    config.workdir = "/var/log";
+//    config.stdout_file = "/tmp/ls.out";
+//    config.stderr_file = "/tmp/ls.err";
+////    config.numproc = 10;
 
-    tasks::task ps(config);
-    ps.start();
+//    tasks::task ps(config);
+//    ps.start();
+//    sleep(2);
+//    ps.restart();
 
-    waitpid(-1, nullptr, 0);
+//    sleep(11);
+//    wait(nullptr);
+//    wait(nullptr);
+//    wait(nullptr);
     return 0;
 }

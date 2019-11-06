@@ -11,6 +11,8 @@
 
 namespace proc{
 
+const time_t DEFAULT_STOPTIME = 10;
+
 class process
 {
 public:
@@ -21,22 +23,24 @@ public:
     process& operator=(const process &other);
     process(process &&other) noexcept;
     process& operator=(process &&other) noexcept;
-    ~process() {stop(true);}
+    ~process() {stop(SIGKILL);}
 
     pid_t start();
-    void stop(bool hard = false);
-    bool update();
+    void stop(int sig = SIGTERM);
+    bool update(bool wait = false);
     int signal(int sig);
-    bool is_exited() {return (state == SIGNALED) || state == EXITED;}
-    bool is_running() {return (state == RUNNING);}
-    bool is_launched() {return (state == RUNNING) || (state == STOPPED);}
-    int get_status() {return state;}
+    bool is_exited();
+    bool is_running();
+    bool is_launched();
+    int get_state() {return state;}
+    int get_pid() {return pid;}
     void set_args(const std::vector<std::string> &arguments = {});
     void set_envs(const std::vector<std::string> &variables = {});
-    void set_workdir(const std::string dir) {workdir = dir;}
+    void set_workdir(const std::string &dir) {workdir = dir;}
     void set_redirection(const std::string &stdin_file_path,
                          const std::string &stdout_file_path,
                          const std::string &stderr_file_path);
+    void set_stoptime(time_t time) {stoptime = time;}
 
 protected:
 private:
@@ -49,13 +53,15 @@ private:
     std::string stdin_file;              // stdin file
     std::string stdout_file;             // stdout file
     std::string stderr_file;             // stderr file
+    time_t stoptime;                     // Maximum process stop time until SIGKILL is received
     enum process_status {
         DID_NOT_START,
         RUNNING,
         STOPPED,
         SIGNALED,
-        EXITED
-    } state;                            // Process status
+        EXITED,
+        TERMINATED
+    } state;                             // Process state
     pid_t pid;                           // Process pid, it makes sense if the process is running
     int exitstatus;                      // Process exit status, it makes sense if the process exited
     int stopsig;                         // Process exit status, it makes sense if the process stopped

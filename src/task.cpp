@@ -1,3 +1,6 @@
+#include "unistd.h"
+#include "sys/types.h"
+
 #include "task.hpp"
 
 using namespace tasks;
@@ -24,16 +27,20 @@ task::task(task_config &config) : state(STOPPED), config(config)
         proc.set_envs(config.envs);
         proc.set_workdir(config.workdir);
         proc.set_redirection(config.stdin_file, config.stdout_file, config.stderr_file);
-        if (config.autostart) proc.start();
+        proc.set_stoptime(config.stoptime);
     }
+    if (config.autostart) start();
 }
 
 void task::start()
 {
     if (state == RUNNING) return;
     cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
+    pgid = 0;
     for (auto &proc: procs) {
         proc.start();
+        if (!pgid) pgid = proc.get_pid();
+        setpgid(proc.get_pid(), pgid);
     }
     state = RUNNING;
 }
@@ -43,7 +50,7 @@ void task::stop()
     if (state == STOPPED) return;
     cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     for (auto &proc: procs) {
-        proc.stop();
+        proc.stop(config.stopsig);
     }
     state = STOPPED;
 }

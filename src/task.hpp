@@ -8,7 +8,6 @@
 #include <string>
 
 #include "process.hpp"
-#include "task.hpp"
 
 // XXX need copy and move constructors
 namespace tasks {
