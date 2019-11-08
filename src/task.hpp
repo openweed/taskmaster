@@ -12,57 +12,78 @@
 // XXX need copy and move constructors
 namespace tasks {
 
-const int              DEFAULT_NUMPROC = 1;
-const int              DEFAULT_MASK = 0655;
-const std::string      DEFAULT_WORKDIR = std::string("/");
-const bool             DEFAULT_AUTOSTART = false;
-const bool             DEFAULT_AUTORESTART = false;
-const std::vector<int> DEFAULT_EXIT_CODES = std::vector<int>({0});
-const size_t           DEFAULT_STARTRETRIES = 0;
-const time_t           DEFAULT_STARTTIME = 5;
-const int              DEFAULT_STOPSIG = SIGTERM;
-const time_t           DEFAULT_STOPTIME = 10;
-const std::string      DEFAULT_REDIR = std::string("/dev/null");
+struct task_config;
 
 struct task_config
 {
-public:
     task_config();
     std::string name;
     std::string bin;
     std::vector<std::string> args;
     std::vector<std::string> envs;
-    size_t numproc;
+    size_t numprocs;
     mode_t mask;
-    std::string workdir;
+    std::string directory;
     bool autostart;
-    bool autorestart;
-    std::vector<int> exit_codes;
+    enum {
+        FALSE,
+        UNEXPECTED,
+        TRUE
+    } autorestart;
+    std::vector<int> exitcodes;
     size_t startretries;
-    time_t starttime;
-    int stopsig;
-    time_t stoptime;
+    time_t startsecs;
+    int stopsignal;
+    time_t stopsecs;
     std::string stdin_file;
     std::string stdout_file;
     std::string stderr_file;
 };
 
+const int              DEFAULT_NUMPROC = 1;
+const int              DEFAULT_MASK = 0022;
+const std::string      DEFAULT_WORKDIR = std::string("/");
+const bool             DEFAULT_AUTOSTART = false;
+const auto             DEFAULT_AUTORESTART = task_config::FALSE;
+const std::vector<int> DEFAULT_EXIT_CODES = std::vector<int>({0});
+const size_t           DEFAULT_STARTRETRIES = 0;
+const time_t           DEFAULT_TIMETOSTART = 5;
+const int              DEFAULT_STOPSIG = SIGTERM;
+const time_t           DEFAULT_STOPTIME = 10;
+const std::string      DEFAULT_REDIR = std::string("/dev/null");
+
+struct task_status
+{
+    task_status();
+    enum {
+        STOPPED,
+        STARTING,
+        RUNNING,
+        EXITED,
+        FATAL,
+        UNKNOWN
+    } state;
+    size_t starttries;
+    time_t starttime;
+};
+
 class task
 {
 public:
-    task(task_config &config);
+    task(struct task_config &configuration);
     void start();
+    void start(size_t index);
     void stop();
+    void stop(size_t index);
     void restart();
+    void restart(size_t index);
+    void status();
     bool update();
+    bool update(size_t index);
 private:
-    enum {
-        STOPPED,
-        RUNNING
-    } state;
-    task_config config;
-    std::vector<proc::process> procs;
-    pid_t pgid;
+    bool is_exited_normally(size_t index);
+    struct task_config config;
+    std::vector<std::pair<proc::process, struct task_status>> processes;
 };
 
 } // namespace tasks

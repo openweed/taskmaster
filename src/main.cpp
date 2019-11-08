@@ -25,6 +25,7 @@ using namespace proc;
 string logfile;
 int as_daemon = 0;
 int as_cli = 0;
+int as_cmd = 1;
 
 void usage(const std::string &progname)
 {
@@ -43,12 +44,12 @@ int parse_opt(int argc, char **argv)
             logfile = optarg;
             break;
         case 'd':                 // -d, --daemon
-            as_cli = 0;
+            as_cmd = as_cli = 0;
             as_daemon = 1;
             break;
         case 'c':                 // -c, --cli
+            as_cmd = as_daemon = 0;;
             as_cli = 1;
-            as_daemon = 0;
             break;
         case '?':                 // -?, unknown option
         default:
@@ -60,45 +61,45 @@ int parse_opt(int argc, char **argv)
     return 0;
 }
 
-int main(int argc, char *argv[])
+int main(int  /*argc*/, char * /*argv*/[])
 {
-    cout << "Hello World!" << endl;
+//    cout << "Hello World!" << endl;
 
-    parse_opt(argc, argv);
-    cout << "daemon:" << as_daemon << endl;
-    cout << "cli:" << as_cli << endl;
-    cout << "log:" << logfile << endl;
+//    if (parse_opt(argc, argv)) exit(1);
+//    cout << "daemon:" << as_daemon << endl;
+//    cout << "cli:" << as_cli << endl;
+//    cout << "log:" << logfile << endl;
 
 //    process proc("/bin/ls");
 //    proc.set_args({"-l", "-R"});
-////    proc.set_workdir("/var/log");
-//    proc.set_workdir("/home/user");
+//    proc.set_workdir("/var/log");
+////    proc.set_workdir("/");
 //    proc.set_redirection("", "/tmp/ls.out", "/tmp/ls.err");
 //    proc.start();
 //    sleep(2);
 //    proc.stop();
 //    cout << "Next" << endl;
 //    proc.start();
-//    while (proc.is_running()) proc.update();
+//    while (proc.is_exist()) proc.update();
 
-//    tasks::task_config config;
-//    config.name = "ls";
-//    config.bin = "/bin/ls";
-//    config.args = {"-l", "-R"};
-//    config.workdir = "/home/user";
-////    config.workdir = "/var/log";
-//    config.stdout_file = "/tmp/ls.out";
-//    config.stderr_file = "/tmp/ls.err";
-////    config.numproc = 10;
+    tasks::task_config config;
+    config.name = "ls";
+    config.bin = "/bin/ls";
+    config.args = {"-l", "-R"};
+//    config.directory = "/home/user";
+    config.directory = "/var/log";
+    config.stdout_file = "/tmp/ls.out";
+    config.stderr_file = "/tmp/ls.err";
+//    config.numproc = 10;
 
-//    tasks::task ps(config);
-//    ps.start();
-//    sleep(2);
-//    ps.restart();
+    tasks::task ps(config);
+    ps.start();
+    sleep(2);
+    ps.start();
 
 //    sleep(11);
-//    wait(nullptr);
-//    wait(nullptr);
-//    wait(nullptr);
+    wait(nullptr);
+    wait(nullptr);
+    wait(nullptr);
     return 0;
 }

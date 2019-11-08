@@ -30,10 +30,12 @@ public:
     bool update(bool wait = false);
     int signal(int sig);
     bool is_exited();
-    bool is_running();
-    bool is_launched();
+    bool is_signaled();
+    bool is_exist();
     int get_state() {return state;}
     int get_pid() {return pid;}
+    int get_exitcode() {return exitstatus;}
+    int get_termsignal() {return termsig;}
     void set_args(const std::vector<std::string> &arguments = {});
     void set_envs(const std::vector<std::string> &variables = {});
     void set_workdir(const std::string &dir) {workdir = dir;}
@@ -41,6 +43,7 @@ public:
                          const std::string &stdout_file_path,
                          const std::string &stderr_file_path);
     void set_stoptime(time_t time) {stoptime = time;}
+    void set_umask(mode_t mode) {mask = mode;}
 
 protected:
 private:
@@ -54,6 +57,7 @@ private:
     std::string stdout_file;             // stdout file
     std::string stderr_file;             // stderr file
     time_t stoptime;                     // Maximum process stop time until SIGKILL is received
+    mode_t mask;
     enum process_status {
         DID_NOT_START,
         RUNNING,

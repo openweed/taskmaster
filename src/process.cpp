@@ -4,6 +4,7 @@
 #include <csignal>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <cstring>
@@ -23,6 +24,7 @@ using namespace proc;
 void process::basic_init()
 {
     state = DID_NOT_START;
+    mask = S_IWGRP | S_IWOTH;
     exitstatus = termsig = stopsig = 0;
     stoptime = DEFAULT_STOPTIME;
     set_args(args);
@@ -56,8 +58,9 @@ process& process::operator=(const process &other)
     stdin_file = other.stdin_file;
     stdout_file = other.stdout_file;
     stderr_file = other.stderr_file;
-    stoptime = stoptime;
     basic_init();
+    stoptime = other.stoptime;
+    mask = other.mask;
     return *this;
 }
 
@@ -65,7 +68,7 @@ process::process(process &&other) noexcept:
     bin(move(other.bin)), args(move(other.args)), envs(move(other.envs)),
     workdir(move(other.workdir)), stdin_file(move(other.stdin_file)),
     stdout_file(move(other.stdout_file)), stderr_file(move(other.stderr_file)),
-    stoptime(other.stoptime), state(other.state), pid(other.pid),
+    stoptime(other.stoptime), mask(other.mask), state(other.state), pid(other.pid),
     exitstatus(other.exitstatus), stopsig(other.stopsig), termsig(other.termsig)
 {
     cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
@@ -102,7 +105,7 @@ process& process::operator=(process &&other) noexcept
 
 pid_t process::start()
 {
-    if (is_launched()) return pid;
+    if (is_exist()) return pid;
     if (access(bin.c_str(), X_OK)) return -errno;
 
     cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
@@ -119,7 +122,9 @@ pid_t process::start()
         }
         return -errno;
     }
+    setpgrp();
     apply_redir();
+    umask(mask);
     chdir(workdir.c_str());
     execve(bin.c_str(), const_cast<char **>(argv.data()), const_cast<char **>(envp.data()));
     exit(1);
@@ -128,7 +133,7 @@ pid_t process::start()
 void process::stop(int sig)
 {
     // If the process is not launched, then return
-    if (!is_launched()) return;
+    if (!is_exist()) return;
     signal(sig);
     state = process::TERMINATED;
     if (sig == SIGKILL) {
@@ -147,7 +152,8 @@ void process::stop(int sig)
 // Возвращает true если что то изменилось
 bool process::update(bool wait)
 {
-    if (!is_launched()) return false;
+    cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
+    if ((state != RUNNING) && (state != STOPPED)) return false;
     int status;
     pid_t res;
     if (!(res = waitpid(pid, &status, wait ? 0 : (WUNTRACED | WNOHANG))))
@@ -173,7 +179,7 @@ bool process::update(bool wait)
 
 int process::signal(int sig)
 {
-    if (!is_launched()) {
+    if (!is_exist()) {
         errno = ESRCH;
         return ESRCH;
     }
@@ -183,15 +189,16 @@ int process::signal(int sig)
 bool process::is_exited()
 {
     update();
-    return state == SIGNALED || state == EXITED;
+    return state == EXITED;
 }
-bool process::is_running()
+bool process::is_signaled()
 {
     update();
-    return (state == RUNNING);
+    return state == SIGNALED;
 }
-bool process::is_launched()
+bool process::is_exist()
 {
+    update();
     return (state == RUNNING) || (state == STOPPED);
 }
 
