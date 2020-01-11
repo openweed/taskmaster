@@ -10,9 +10,11 @@
 #include "process.hpp"
 
 // XXX need copy and move constructors
-namespace tasks {
-
+//namespace tasks {
 struct task_config;
+
+void print_config(const task_config &tconf, std::ostream &stream);
+std::vector<task_config> config_from_yaml(const std::string &file);
 
 struct task_config
 {
@@ -23,7 +25,7 @@ struct task_config
     std::vector<std::string> envs;
     size_t numprocs;
     mode_t mask;
-    std::string directory;
+    std::string workdir;
     bool autostart;
     enum {
         FALSE,
@@ -41,7 +43,7 @@ struct task_config
 };
 
 const int              DEFAULT_NUMPROC = 1;
-const int              DEFAULT_MASK = 0022;
+const int              DEFAULT_MASK = 022;
 const std::string      DEFAULT_WORKDIR = std::string("/");
 const bool             DEFAULT_AUTOSTART = false;
 const auto             DEFAULT_AUTORESTART = task_config::FALSE;
@@ -70,7 +72,7 @@ struct task_status
 class task
 {
 public:
-    task(struct task_config &configuration);
+    task(const task_config &configuration);
     void start();
     void start(size_t index);
     void stop();
@@ -86,6 +88,7 @@ private:
     std::vector<std::pair<proc::process, struct task_status>> processes;
 };
 
-} // namespace tasks
+//} // namespace tasks
+
 
 #endif // TASK_HPP

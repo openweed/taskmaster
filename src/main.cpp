@@ -6,6 +6,7 @@
 
 //#include "process.hpp"
 #include "task.hpp"
+#include "taskmaster.hpp"
 
 //Common defines
 const char *const shortopts = "+hdc";
@@ -19,7 +20,6 @@ static const std::array<option, 5> longopts {
 ///
 
 using namespace std;
-
 using namespace proc;
 
 string logfile;
@@ -63,43 +63,47 @@ int parse_opt(int argc, char **argv)
 
 int main(int  /*argc*/, char * /*argv*/[])
 {
-//    cout << "Hello World!" << endl;
-
-//    if (parse_opt(argc, argv)) exit(1);
-//    cout << "daemon:" << as_daemon << endl;
-//    cout << "cli:" << as_cli << endl;
-//    cout << "log:" << logfile << endl;
-
-//    process proc("/bin/ls");
-//    proc.set_args({"-l", "-R"});
-//    proc.set_workdir("/var/log");
-////    proc.set_workdir("/");
-//    proc.set_redirection("", "/tmp/ls.out", "/tmp/ls.err");
-//    proc.start();
-//    sleep(2);
-//    proc.stop();
-//    cout << "Next" << endl;
-//    proc.start();
-//    while (proc.is_exist()) proc.update();
-
-    tasks::task_config config;
-    config.name = "ls";
-    config.bin = "/bin/ls";
-    config.args = {"-l", "-R"};
-//    config.directory = "/home/user";
-    config.directory = "/var/log";
-    config.stdout_file = "/tmp/ls.out";
-    config.stderr_file = "/tmp/ls.err";
-//    config.numproc = 10;
-
-    tasks::task ps(config);
-    ps.start();
-    sleep(2);
-    ps.start();
-
-//    sleep(11);
-    wait(nullptr);
-    wait(nullptr);
-    wait(nullptr);
+//    taskmaster core;
+    for (auto i : config_from_yaml("/home/user/Projects/taskmaster/config.yaml")) print_config(i, cout);
+//    for (auto i : config_from_yaml(TDEFAULT_CONFIG_PATH)) print_config(i, cout);
     return 0;
 }
+
+////    cout << "Hello World!" << endl;
+
+////    if (parse_opt(argc, argv)) exit(1);
+////    cout << "daemon:" << as_daemon << endl;
+////    cout << "cli:" << as_cli << endl;
+////    cout << "log:" << logfile << endl;
+
+////    process proc("/bin/ls");
+////    proc.set_args({"-l", "-R"});
+////    proc.set_workdir("/var/log");
+//////    proc.set_workdir("/");
+////    proc.set_redirection("", "/tmp/ls.out", "/tmp/ls.err");
+////    proc.start();
+////    sleep(2);
+////    proc.stop();
+////    cout << "Next" << endl;
+////    proc.start();
+////    while (proc.is_exist()) proc.update();
+
+//    tasks::task_config config;
+//    config.name = "ls";
+//    config.bin = "/bin/ls";
+//    config.args = {"-l", "-R"};
+////    config.directory = "/home/user";
+//    config.directory = "/var/log";
+//    config.stdout_file = "/tmp/ls.out";
+//    config.stderr_file = "/tmp/ls.err";
+////    config.numproc = 10;
+
+//    tasks::task ps(config);
+//    ps.start();
+//    sleep(2);
+//    ps.start();
+
+////    sleep(11);
+//    wait(nullptr);
+//    wait(nullptr);
+//    wait(nullptr);
