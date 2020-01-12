@@ -7,6 +7,7 @@
 //#include "process.hpp"
 #include "task.hpp"
 #include "taskmaster.hpp"
+#include "cli.hpp"
 
 //Common defines
 const char *const shortopts = "+hdc";
@@ -63,9 +64,11 @@ int parse_opt(int argc, char **argv)
 
 int main(int  /*argc*/, char * /*argv*/[])
 {
-//    taskmaster core;
-    for (auto i : config_from_yaml("/home/user/Projects/taskmaster/config.yaml")) print_config(i, cout);
-//    for (auto i : config_from_yaml(TDEFAULT_CONFIG_PATH)) print_config(i, cout);
+    taskmaster core;
+    core.load_config("/home/user/Projects/taskmaster/config.yaml");
+
+    cli<taskmaster> cmd(core);
+    cmd.run();
     return 0;
 }
 

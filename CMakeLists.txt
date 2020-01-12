@@ -28,6 +28,9 @@ add_executable(${PROJECT_NAME}
                src/process.cpp
                src/task.cpp
                src/taskmaster.cpp
+               src/cli.cpp
+               src/comm.cpp
+               config.yaml # for QtCreator
               )
 
 target_link_libraries(${PROJECT_NAME}

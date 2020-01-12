@@ -1,17 +1,15 @@
-#ifndef CONFIGURATION_HPP
-#define CONFIGURATION_HPP
+#ifndef COMM_HPP
+#define COMM_HPP
 
 #include <string>
 #include <vector>
 
-#include "defaults.hpp"
 #include "task.hpp"
 
-class taskmaster : public std::vector<task>
+class comm
 {
 public:
-    taskmaster();
-    bool load_config(const std::string &file);
+    comm();
     void start(const std::string &name);
     void stop(const std::string &name);
     void restart(const std::string &name);
@@ -21,8 +19,7 @@ public:
     void reload_config(const std::string &file);
     void exit();
 private:
-    bool configured = false;
-    std::string config_file;
+    bool send(const std::string cmd);
 };
 
-#endif // CONFIGURATION_HPP
+#endif // COMM_HPP

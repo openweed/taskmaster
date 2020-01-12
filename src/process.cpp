@@ -206,25 +206,28 @@ void process::set_args(const std::vector<string> &arguments)
 {
     args = arguments;
     argv.clear();
-    argv.resize(args.size() + 2U);
-    size_t i = 0;
-    argv[i++] = bin.c_str();
-    for (const auto &arg: args)
-        argv[i++] = arg.c_str();
-    argv[i] = nullptr;
+    argv.push_back(bin.c_str());
+    for (const auto &arg: args) argv.push_back(arg.c_str());
+    argv.push_back(nullptr);
+//    argv.resize(args.size() + 2U);
+//    size_t i = 0;
+//    argv[i++] = bin.c_str();
+//    for (const auto &arg: args)
+//        argv[i++] = arg.c_str();
+//    argv[i] = nullptr;
 }
 
 void process::set_envs(const std::vector<std::string> &variables)
 {
     envs = variables;
     envp.clear();
-    size_t i = 0;
-    for (auto &var : envs)
-        envp[i++] = var.c_str();
+    for (auto &var : envs) envp.push_back(var.c_str());
+    envp.push_back(nullptr);
 }
 
-void process::set_redirection(const std::string &stdin_file_path, const std::string &stdout_file_path,
-                     const std::string &stderr_file_path)
+void process::set_redirection(const std::string &stdin_file_path,
+                              const std::string &stdout_file_path,
+                              const std::string &stderr_file_path)
 {
     stdin_file = stdin_file_path;
     stdout_file = stdout_file_path;

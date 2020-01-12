@@ -14,7 +14,7 @@
 struct task_config;
 
 void print_config(const task_config &tconf, std::ostream &stream);
-std::vector<task_config> config_from_yaml(const std::string &file);
+std::vector<task_config> tconfs_from_yaml(const std::string &file);
 
 struct task_config
 {

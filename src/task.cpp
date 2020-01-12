@@ -36,8 +36,9 @@ task_config::task_config() : numprocs(DEFAULT_NUMPROC), mask(DEFAULT_MASK),
     workdir(DEFAULT_WORKDIR), autostart(DEFAULT_AUTOSTART),
     autorestart(DEFAULT_AUTORESTART), exitcodes(DEFAULT_EXIT_CODES),
     startretries(DEFAULT_STARTRETRIES), startsecs(DEFAULT_TIMETOSTART),
-    stopsignal(DEFAULT_STOPSIG), stopsecs(DEFAULT_STOPTIME), stdin_file(DEFAULT_REDIR),
-    stdout_file(DEFAULT_REDIR), stderr_file(DEFAULT_REDIR)
+    stopsignal(DEFAULT_STOPSIG), stopsecs(DEFAULT_STOPTIME),
+    stdin_file(DEFAULT_REDIR), stdout_file(DEFAULT_REDIR),
+    stderr_file(DEFAULT_REDIR)
 {}
 
 task_status::task_status() : state(STOPPED), starttries(0), starttime(0)
@@ -45,12 +46,14 @@ task_status::task_status() : state(STOPPED), starttries(0), starttime(0)
 
 task::task(const task_config &configuration) : config(configuration)
 {
-    processes.resize(config.numprocs, make_pair(proc::process(config.bin), task_status()));
+    processes.resize(config.numprocs,
+                     make_pair(proc::process(config.bin), task_status()));
     for (auto &proc: processes) {
         proc.first.set_args(config.args);
         proc.first.set_envs(config.envs);
         proc.first.set_workdir(config.workdir);
-        proc.first.set_redirection(config.stdin_file, config.stdout_file, config.stderr_file);
+        proc.first.set_redirection(config.stdin_file, config.stdout_file,
+                                   config.stderr_file);
         proc.first.set_stoptime(config.stopsecs);
         proc.first.set_umask(config.mask);
     }
@@ -140,7 +143,8 @@ bool task::update(size_t index)
     } else if (state == task_status::RUNNING) {
         if (config.autorestart == task_config::TRUE) {
             start(index);
-        } else if (config.autorestart == task_config::UNEXPECTED && !is_exited_normally(index)) {
+        } else if (config.autorestart == task_config::UNEXPECTED &&
+                   !is_exited_normally(index)) {
             start(index);
         } else {
             processes[index].second.state = task_status::EXITED;
@@ -289,11 +293,8 @@ static void _config_read_env(const YAML::Node &param, task_config &tconf)
                                                 env.second.as<string>());
 }
 
-vector<task_config> config_from_yaml(const std::string &file)
+vector<task_config> tconfs_from_yaml(const std::string &file)
 {
-    // XXX
-    clog << "Config file: " << file << endl;
-
     try {
         YAML::Node config = YAML::LoadFile(file);
 
@@ -310,17 +311,21 @@ vector<task_config> config_from_yaml(const std::string &file)
                 if (_read_funcs_map.find(param_name) != _read_funcs_map.end()) {
                     _read_funcs_map[param_name](param->second, tconf);
                 } else {
-                    clog << "Warning: Ignore unknown config parameter: " << tconf.name <<
-                            ": " << param_name << endl;
+                    clog << "Warning: Ignore unknown config parameter: " <<
+                            tconf.name << ": " << param_name << endl;
                 }
             }
             task_cfgs.push_back(tconf);
         }
         return task_cfgs;
     } catch (const YAML::BadFile &e) {
-        clog << "Error while loading configuration file: " << file << ": " << e.what() << endl;
+        clog << "Error while loading configuration file: " << file << ": " <<
+                e.what() << endl <<
+                "Configuration aborted, run reload config to retry." << endl;
     } catch (const YAML::Exception &e) {
-        clog << "Error while parsing configuration file: " << file << ": " << e.what() << endl;
+        clog << "Error while parsing configuration file: " << file << ": " <<
+                e.what() << endl <<
+                "Configuration aborted, run reload config to retry." << endl;
     }
     return {};
 }
