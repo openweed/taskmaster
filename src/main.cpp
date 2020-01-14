@@ -72,8 +72,8 @@ int main(int  argc, char *argv[])
         taskmaster master;
         master.load_yaml_config("/home/user/Projects/taskmaster/config.yaml");
 
-        communication comm(true);
-        comm.run_master(master);
+        communication comm(true, &master);
+        comm.run_master();
     } else if (run_client) {
         communication comm(false);
 
