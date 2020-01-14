@@ -3,15 +3,16 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "defaults.hpp"
 #include "task.hpp"
 
-class taskmaster : public std::vector<task>
+class taskmaster : public std::unordered_map<std::string, task>
 {
 public:
     taskmaster();
-    bool load_config(const std::string &file);
+    bool load_yaml_config(const std::string &file);
     void start(const std::string &name);
     void stop(const std::string &name);
     void restart(const std::string &name);

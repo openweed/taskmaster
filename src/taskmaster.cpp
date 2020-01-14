@@ -15,7 +15,7 @@ taskmaster::taskmaster()
 
 }
 
-bool taskmaster::load_config(const string &file)
+bool taskmaster::load_yaml_config(const string &file)
 {
     config_file = file;
 
@@ -23,7 +23,7 @@ bool taskmaster::load_config(const string &file)
 
     auto tconfigs = tconfs_from_yaml(file);
     for (auto i : tconfigs) print_config(i, cout);
-    for (auto t : tconfigs) emplace_back(t);
+    for (auto t : tconfigs) emplace(t.name, t);
     return (configured = true);
 }
 
@@ -45,7 +45,7 @@ void taskmaster::restart(const std::string &name)
 // An empty name returns the status of all programs
 std::vector<task_status> taskmaster::status(const std::string &name)
 {
-    cout << "taskmaster: sttus called for " << (name.empty() ? "all" : name) <<
+    cout << "taskmaster: status called for " << (name.empty() ? "all" : name) <<
             endl;
     return {};
 }

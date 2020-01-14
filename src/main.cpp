@@ -8,6 +8,7 @@
 #include "task.hpp"
 #include "taskmaster.hpp"
 #include "cli.hpp"
+#include "communication.hpp"
 
 //Common defines
 const char *const shortopts = "+hdc";
@@ -24,9 +25,9 @@ using namespace std;
 using namespace proc;
 
 string logfile;
-int as_daemon = 0;
-int as_cli = 0;
-int as_cmd = 1;
+int run_daemon = 0;
+int run_client = 0;
+int run_command = 1;
 
 void usage(const std::string &progname)
 {
@@ -45,12 +46,12 @@ int parse_opt(int argc, char **argv)
             logfile = optarg;
             break;
         case 'd':                 // -d, --daemon
-            as_cmd = as_cli = 0;
-            as_daemon = 1;
+            run_command = run_client = 0;
+            run_daemon = 1;
             break;
         case 'c':                 // -c, --cli
-            as_cmd = as_daemon = 0;;
-            as_cli = 1;
+            run_command = run_daemon = 0;;
+            run_client = 1;
             break;
         case '?':                 // -?, unknown option
         default:
@@ -62,13 +63,29 @@ int parse_opt(int argc, char **argv)
     return 0;
 }
 
-int main(int  /*argc*/, char * /*argv*/[])
+int main(int  argc, char *argv[])
 {
-    taskmaster core;
-    core.load_config("/home/user/Projects/taskmaster/config.yaml");
+    parse_opt(argc, argv);
+    cout << "Cli:" << run_client << endl;
+    cout << "Daemon:" << run_daemon << endl;
+    if (run_daemon) {
+        taskmaster master;
+        master.load_yaml_config("/home/user/Projects/taskmaster/config.yaml");
 
-    cli<taskmaster> cmd(core);
-    cmd.run();
+        communication comm(true);
+        comm.run_master(master);
+    } else if (run_client) {
+        communication comm(false);
+
+        cli<communication> cmd(comm);
+        cmd.run();
+    } else {
+        taskmaster master;
+        master.load_yaml_config("/home/user/Projects/taskmaster/config.yaml");
+
+        cli<taskmaster> cmd(master);
+        cmd.run();
+    }
     return 0;
 }
 
