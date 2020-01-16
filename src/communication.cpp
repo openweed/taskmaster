@@ -7,27 +7,35 @@
 
 using namespace std;
 
-communication::communication(bool is_master, taskmaster *master_p) :
-    master(master_p),
-    context(1),
-    socket(context, (is_master ? ZMQ_REP : ZMQ_REQ))
+communication::communication(taskmaster *master_p, unsigned int port,
+                             const std::string address) :
+    context_t(1),
+    socket_t(*this, (master_p ? ZMQ_REP : ZMQ_REQ)),
+    master(master_p)
 {
-    try {
-        if (is_master) {
-            if (!master_p) throw runtime_error("fatal error");
-            socket.bind((string("tcp://*:") + to_string(TDAEMON_PORT)));
-        } else {
-            socket.connect((string("tcp://localhost:") + to_string(TDAEMON_PORT)));
-        }
-    } catch (const exception &e) {
-        if (is_master) {
+    if (master_p) {
+        try {
+            bind("tcp://*:" + to_string(port));
+            connected = true;
+        } catch (const exception &e) {
             clog << "Connection initialization error: " << e.what() << endl <<
                     "The program will run in uncontrolled mode." << endl;
-        } else {
+        }
+    } else {
+        try {
+            monitor_init();
+            connect("tcp://" + address + ":" + to_string(port));
+        } catch (const exception &e) {
             cerr << "Connection failed: " << e.what() << endl;
             std::exit(EXIT_FAILURE);
         }
     }
+}
+
+communication::~communication()
+{
+    zmq::monitor_t::abort();
+    monitor_thread.join();
 }
 
 void communication::run_master()
@@ -35,7 +43,7 @@ void communication::run_master()
     clog << "The daemon is running on port " << to_string(TDAEMON_PORT) << endl;
     while (true) {
         zmq::message_t request;
-        socket.recv(&request);
+        recv(&request);
         msg_hdr *msg = static_cast<msg_hdr *>(request.data());
         clog << "Recived message: type " << static_cast<int>(msg->type) << endl;
         switch (msg->type) {
@@ -70,34 +78,53 @@ void communication::start(const std::string &name)
 
     msg->type = msg_type::REQ_START;
     strcpy(msg->data, name.c_str());
-    send(msg);
-
-    cli_get_reply();
+    if (send_msg(msg))
+        get_reply();
 }
 void communication::stop(const std::string &name)
 {
-    cout << "communication: stop called for " << name << endl;
+    if (send_req(name, msg_type::REQ_STOP))
+        get_reply();
 }
 void communication::restart(const std::string &name)
 {
-    cout << "communication: restart called for" << name << endl;
+    if (send_req(name, msg_type::REQ_RESTART))
+        get_reply();
 }
 std::vector<task_status> communication::status(const std::string &name)
 {
-    cout << "communication: status called for " << (name.empty() ? "all" : name) <<
-            endl;
+    if (send_req(name, msg_type::REQ_STATUS))
+        get_reply();
     return {};
 }
 void communication::reload_config(const std::string &file)
 {
-    cout << "communication: reload config called for file: " <<
-            (file.empty() ? "old file" : file) << endl;
+    if (send_req(file, msg_type::REQ_RELOAD_CONFIG))
+        get_reply();
 }
 void communication::exit()
 {
-    cout << "communication: exit called" << endl;
+    if (send_req("", msg_type::REQ_EXIT))
+        get_reply();
 }
 
+void communication::get_reply()
+{
+    zmq::message_t reply;
+    recv(&reply);
+    if (reply.size() < sizeof (msg_hdr)) {
+        cerr << "error: recived incorrect message" << endl;
+        return;
+    }
+
+    msg_hdr *msg = static_cast<msg_hdr *>(reply.data());
+    if (msg->type == msg_type::REP_REP)
+        cout << "daemon: " << msg->data << endl;
+    else if (msg->type == msg_type::REP_ERR)
+        cerr << "daemon: " << msg->data << endl;
+    else
+        cerr << "error: recived incorrect message" << endl;
+}
 
 std::unique_ptr<communication::msg_hdr, void(*)(communication::msg_hdr*)>
 communication::get_raw_msg(size_t content_size)
@@ -111,29 +138,77 @@ communication::get_raw_msg(size_t content_size)
     return raw_msg;
 }
 
-void communication::send(msg_hdr *msg)
+size_t communication::send_msg(msg_hdr *msg)
 {
-    cout << "Sending msg type " << static_cast<int>(msg->type) << ", len " << msg->total_len << " data '" << msg->data << "'." << endl;
-    socket.send(msg, msg->total_len);
+    if (connected) {
+        return send(msg, msg->total_len, ZMQ_DONTWAIT);
+    } else {
+        cout << "No connection to the daemon." << endl <<
+                "Run 'taskmaster --daemon' in the terminal "
+                "to start the daemon." << endl;
+        return 0;
+    }
 }
 
-void communication::send_str(const std::string &str, msg_type type)
+size_t communication::send_str(const string &str, msg_type type)
 {
     auto raw_msg = get_raw_msg(str.size() + 1);
     msg_hdr *msg = raw_msg.get();
 
     msg->type = type;
     strcpy(msg->data, str.c_str());
-    send(msg);
+    return send_msg(msg);
+}
+
+size_t communication::send_req(const string &name, msg_type req)
+{
+    if (req < msg_type::MIN_REQ || req > msg_type::MAX_REQ)
+        throw runtime_error("fatal error");
+    return send_str(name, req);
+}
+
+size_t communication::send_rep(const string &str, msg_type rep)
+{
+    if (rep < msg_type::MIN_REP || rep > msg_type::MAX_REP)
+        throw runtime_error("fatal error");
+    return send_str(str, rep);
+}
+
+void communication::monitor_init()
+{
+    auto monitor_func = [this]()
+    {
+        this->monitor(*this, "inproc://monitor-client",
+                      ZMQ_EVENT_CONNECTED | ZMQ_EVENT_DISCONNECTED);
+    };
+    monitor_mutex.lock();
+    monitor_thread = thread(monitor_func);
+    monitor_mutex.lock();
+    monitor_mutex.unlock();
+}
+
+void communication::on_monitor_started()
+{
+    monitor_mutex.unlock();
+}
+
+void communication::on_event_connected(const zmq_event_t &, const char*)
+{
+    connected = true;
+}
+
+void communication::on_event_disconnected(const zmq_event_t &, const char*)
+{
+    connected = false;
 }
 
 void communication::rep_start(const std::string &name)
 {
     try {
         master->start(name);
-        send_str(name + ": started", msg_type::REP_REP);
+        send_rep(name + ": started", msg_type::REP_REP);
     } catch (const exception &e) {
-        send_str(name + ": error: " + e.what(), msg_type::REP_ERR);
+        send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
 }
 
@@ -141,9 +216,9 @@ void communication::rep_stop(const std::string &name)
 {
     try {
         master->stop(name);
-        send_str(name + ": stopped", msg_type::REP_REP);
+        send_rep(name + ": stopped", msg_type::REP_REP);
     } catch (const exception &e) {
-        send_str(name + ": error: " + e.what(), msg_type::REP_ERR);
+        send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
 }
 
@@ -151,9 +226,9 @@ void communication::rep_restart(const std::string &name)
 {
     try {
         master->restart(name);
-        send_str(name + ": restarted", msg_type::REP_REP);
+        send_rep(name + ": restarted", msg_type::REP_REP);
     } catch (const exception &e) {
-        send_str(name + ": error: " + e.what(), msg_type::REP_ERR);
+        send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
 }
 
@@ -162,7 +237,7 @@ void communication::rep_status(const std::string &name)
     try {
         master->restart(name);
     } catch (const exception &e) {
-        send_str(name + ": error: " + e.what(), msg_type::REP_ERR);
+        send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
 }
 
@@ -170,27 +245,14 @@ void communication::rep_reload_config(const std::string &name)
 {
     try {
         master->restart(name);
-        send_str(name + ": started", msg_type::REP_REP);
+        send_rep(name + ": started", msg_type::REP_REP);
     } catch (const exception &e) {
-        send_str(name + ": error: " + e.what(), msg_type::REP_ERR);
+        send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
 }
 
 void communication::rep_exit()
 {
-    send_str("daemon: goodbye", msg_type::REP_REP);
+    send_rep("daemon: goodbye", msg_type::REP_REP);
     master->exit();
-}
-
-void communication::cli_get_reply()
-{
-    zmq::message_t reply;
-    socket.recv(&reply);
-    msg_hdr *msg = static_cast<msg_hdr *>(reply.data());
-    if (msg->type == msg_type::REP_REP)
-        cout << "daemon: " << msg->data << endl;
-    else if (msg->type == msg_type::REP_ERR)
-        cerr << "daemon: " << msg->data << endl;
-    else
-        cerr << "error: an unrecognized type reply was received" << endl;
 }

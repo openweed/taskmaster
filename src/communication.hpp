@@ -4,26 +4,35 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 #include <zmq.hpp>
 
 #include "taskmaster.hpp"
 
 constexpr unsigned int TDAEMON_PORT = 4242;
+constexpr int          TCLI_SNDTIMEO = 0;
+constexpr int          TCLI_RCVTIMEO = 1000;
 
-class communication
+class communication : public zmq::context_t, public zmq::socket_t, public zmq::monitor_t
 {
 private:
     enum class msg_type : int
     {
-        REQ_START,
+        MIN_REQ = 0,
+        REQ_START = MIN_REQ,
         REQ_STOP,
         REQ_RESTART,
         REQ_STATUS,
         REQ_RELOAD_CONFIG,
         REQ_EXIT,
-        REP_REP,
+        MAX_REQ = REQ_EXIT,
+        MIN_REP,
+        REP_REP = MIN_REP,
         REP_ERR,
+        MAX_REP = REP_ERR
     };
     struct msg_hdr {
         msg_type type;
@@ -31,7 +40,10 @@ private:
         char data[0];
     } __attribute__((packed));
 public:
-    communication(bool is_master, taskmaster *master_p = nullptr);
+    communication(taskmaster *master_p,
+                  unsigned int port = TDAEMON_PORT,
+                  const std::string address = "localhost");
+    ~communication();
     void run_master();
 
     void start(const std::string &name);
@@ -45,21 +57,29 @@ public:
 private:
     std::unique_ptr<msg_hdr, void(*)(msg_hdr *)>
     get_raw_msg(std::size_t content_size);
-    void send(msg_hdr *msg);
-    void send_str(const std::string &str, msg_type type);
+    size_t send_msg(msg_hdr *msg);
+    size_t send_str(const std::string &str, msg_type type);
 
+    // Cli members
+    std::atomic_bool connected = false;
+    std::thread monitor_thread;
+    std::mutex  monitor_mutex;
+    void monitor_init();
+    virtual void on_monitor_started();
+    virtual void on_event_connected(const zmq_event_t &event_, const char* addr_);
+    virtual void on_event_disconnected(const zmq_event_t &event_, const char* addr_);
+    size_t send_req(const std::string &name, msg_type req);
+    void get_reply();
+
+    // Master members
+    taskmaster *master = nullptr;
+    size_t send_rep(const std::string &str, msg_type rep);
     void rep_start(const std::string &name);
     void rep_stop(const std::string &name);
     void rep_restart(const std::string &name);
     void rep_status(const std::string &name);
     void rep_reload_config(const std::string &name);
     void rep_exit();
-
-    void cli_get_reply();
-    taskmaster *master;
-    zmq::context_t context;
-    zmq::socket_t socket;
-
 };
 
 #endif // COMM_HPP

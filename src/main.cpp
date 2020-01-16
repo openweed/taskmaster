@@ -72,13 +72,14 @@ int main(int  argc, char *argv[])
         taskmaster master;
         master.load_yaml_config("/home/user/Projects/taskmaster/config.yaml");
 
-        communication comm(true, &master);
+        communication comm(&master);
         comm.run_master();
     } else if (run_client) {
-        communication comm(false);
+        communication comm(nullptr);
 
         cli<communication> cmd(comm);
         cmd.run();
+        thread cli_t(&cli<communication>::run, cmd);
     } else {
         taskmaster master;
         master.load_yaml_config("/home/user/Projects/taskmaster/config.yaml");
@@ -86,6 +87,7 @@ int main(int  argc, char *argv[])
         cli<taskmaster> cmd(master);
         cmd.run();
     }
+
     return 0;
 }
 

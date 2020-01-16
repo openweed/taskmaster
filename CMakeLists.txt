@@ -9,11 +9,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(PkgConfig)
 
-### RapidJSON
-find_package(RapidJSON REQUIRED)
-include_directories(${RAPIDJSON_INCLUDE_DIRS})
-# RapidJSON end
-
 ### yaml-cpp
 find_package(yaml-cpp REQUIRED)
 if (YAML_CPP_INCLUDE_DIR)
@@ -48,7 +43,6 @@ add_executable(${PROJECT_NAME}
                src/process.cpp
                src/task.cpp
                src/taskmaster.cpp
-               src/cli.cpp
                src/communication.cpp
                config.yaml # for QtCreator
               )

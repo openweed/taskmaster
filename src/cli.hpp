@@ -29,16 +29,10 @@ template<class T>
 class cli
 {
 public:
-    cli(T &processor, std::istream &input_stream = std::cin,
-        std::ostream &output_stream = std::cout) :
-        master(processor), input(input_stream), output(output_stream) {
-    }
-
+    cli(T &processor) : master(processor) {}
     int run();
 private:
     T &master;
-    std::istream &input;
-    std::ostream &output;
     static std::unordered_map<std::string, cmd_types> cmd_map;
     void cmd_start(std::istringstream &args);
     void cmd_stop(std::istringstream &args);
@@ -61,14 +55,14 @@ std::unordered_map<std::string, cmd_types> cli<T>::cmd_map = {
 template<class T>
 int cli<T>::run()
 {
-    for (std::string line; (output << CLI_PROMPT, std::getline(input, line));) {
+    for (std::string line; (std::cout << CLI_PROMPT, std::getline(std::cin, line));) {
         std::istringstream cmd_stream(line);
         std::string cmd;
         if (!(cmd_stream >> cmd)) continue;
 
         auto cmd_type = cmd_map.find(cmd);
         if (cmd_type == cmd_map.end()) {
-            output << "Unknown command: " << cmd << std::endl << CLI_USAGE
+            std::cerr << "Unknown command: " << cmd << std::endl << CLI_USAGE
                    << std::flush;
             continue;
         }
@@ -104,8 +98,7 @@ void cli<T>::cmd_start(std::istringstream &args)
 {
     std::string name;
     if (!(args >> name)) {
-        output << "Command start requires name. " << std::endl <<
-                  "Usage: start NAME" << std::endl;
+        std::cerr << "Usage: start NAME" << std::endl;
         return;
     }
     master.start(name);
@@ -116,8 +109,7 @@ void cli<T>::cmd_stop(std::istringstream &args)
 {
     std::string name;
     if (!(args >> name)) {
-        output << "Command stop requires name. " << std::endl <<
-                  "Usage: stop NAME" << std::endl;
+        std::cerr << "Usage: stop NAME" << std::endl;
         return;
     }
     master.stop(name);
@@ -128,8 +120,7 @@ void cli<T>::cmd_restart(std::istringstream &args)
 {
     std::string name;
     if (!(args >> name)) {
-        output << "Command restart requires name. " << std::endl <<
-                  "Usage: restart NAME" << std::endl;
+        std::cerr << "Usage: restart NAME" << std::endl;
         return;
     }
     master.restart(name);
@@ -162,8 +153,7 @@ void cli<T>::cmd_exit(std::istringstream &args)
     } else if (name == "cli") {
         std::exit(0);
     } else {
-        output << "The exit command only works with cli and daemon." <<
-                  std::endl << "Usage: exit [cli|daemon]" << std::endl;
+        std::cerr << std::endl << "Usage: exit [cli|daemon]" << std::endl;
     }
 }
 

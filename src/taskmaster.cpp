@@ -34,12 +34,15 @@ void taskmaster::start(const std::string &name)
 
 void taskmaster::stop(const std::string &name)
 {
+    auto t = find(name);
+    if (t == end()) throw runtime_error("no such task");
+    t->second.stop();
     cout << "taskmaster: stop called for " << name << endl;
 }
 
 void taskmaster::restart(const std::string &name)
 {
-    cout << "taskmaster: restart called for" << name << endl;
+    cout << "taskmaster: restart called for " << name << endl;
 }
 
 // An empty name returns the status of all programs
