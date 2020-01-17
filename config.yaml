@@ -1,4 +1,4 @@
-nginx:
+ls:
     prog: "/usr/bin/ls"
     args:
         - "-l"
@@ -9,7 +9,7 @@ nginx:
     numprocs: 1
     umask: 022
     workingdir: /home/user
-    autostart: true
+    autostart: false
     autorestart: unexpected
     exitcodes:
         - 0

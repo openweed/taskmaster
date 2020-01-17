@@ -69,8 +69,7 @@ int main(int  argc, char *argv[])
     cout << "Cli:" << run_client << endl;
     cout << "Daemon:" << run_daemon << endl;
     if (run_daemon) {
-        taskmaster master;
-        master.load_yaml_config("/home/user/Projects/taskmaster/config.yaml");
+        taskmaster master("/home/user/Projects/taskmaster/config.yaml");
 
         communication comm(&master);
         comm.run_master();

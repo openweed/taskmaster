@@ -12,16 +12,20 @@ class taskmaster : public master, private std::unordered_map<std::string, task>
 {
 public:
     taskmaster() = default;
+    ~taskmaster() {master_p = nullptr;}
+    taskmaster(const std::string &file);
     bool load_yaml_config(const std::string &file);
-    virtual void start(const std::string &name);
-    virtual void stop(const std::string &name);
-    virtual void restart(const std::string &name);
+    virtual std::string start(const std::string &name);
+    virtual std::string stop(const std::string &name);
+    virtual std::string restart(const std::string &name);
     // An empty name returns the status of all programs
-    virtual std::vector<task_status> status(const std::string &name);
+    virtual std::string status(const std::string &name);
     // An empty name uses old config
-    virtual void reload_config(const std::string &file);
-    virtual void exit();
+    virtual std::string reload_config(const std::string &file);
+    virtual std::string exit();
 private:
+    static void update(int signal);
+    static taskmaster *master_p;
     bool configured = false;
     std::string config_file;
 };

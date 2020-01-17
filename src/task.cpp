@@ -3,8 +3,11 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <map>
 #include <exception>
 #include <yaml-cpp/yaml.h>
+
+#include <ctime>
 
 #include "unistd.h"
 #include "sys/types.h"
@@ -14,6 +17,15 @@
 //using namespace tasks;
 
 using namespace std;
+
+static map<int, string> _states_map = {
+    {task_status::STOPPED,  "stoppped"},
+    {task_status::STARTING, "starting"},
+    {task_status::RUNNING,  "running"},
+    {task_status::EXITED,   "exited"},
+    {task_status::FATAL,    "fatal"},
+    {task_status::UNKNOWN,  "unknown (fatal error)"}
+};
 
 static void _config_read_prog(const YAML::Node &param, task_config &tconf);
 static void _config_read_args(const YAML::Node &param, task_config &tconf);
@@ -32,68 +44,88 @@ static void _config_read_stderr(const YAML::Node &param, task_config &tconf);
 static void _config_read_env(const YAML::Node &param, task_config &tconf);
 
 
-task_config::task_config() : numprocs(DEFAULT_NUMPROC), mask(DEFAULT_MASK),
-    workdir(DEFAULT_WORKDIR), autostart(DEFAULT_AUTOSTART),
-    autorestart(DEFAULT_AUTORESTART), exitcodes(DEFAULT_EXIT_CODES),
-    startretries(DEFAULT_STARTRETRIES), startsecs(DEFAULT_TIMETOSTART),
-    stopsignal(DEFAULT_STOPSIG), stopsecs(DEFAULT_STOPTIME),
-    stdin_file(DEFAULT_REDIR), stdout_file(DEFAULT_REDIR),
-    stderr_file(DEFAULT_REDIR)
-{}
-
-task_status::task_status() : state(STOPPED), starttries(0), starttime(0)
-{}
-
-task::task(const task_config &configuration) : config(configuration)
+task::task(const task_config &tconf) : config(tconf)
 {
-    processes.resize(config.numprocs,
-                     make_pair(proc::process(config.bin), task_status()));
-    for (auto &proc: processes) {
-        proc.first.set_args(config.args);
-        proc.first.set_envs(config.envs);
-        proc.first.set_workdir(config.workdir);
-        proc.first.set_redirection(config.stdin_file, config.stdout_file,
+    resize(config.numprocs, config.bin);
+//    processes.resize(config.numprocs,
+//                     make_pair(proc::process(config.bin), task_status()));
+    for (auto &proc: *this) {
+        proc.set_args(config.args);
+        proc.set_envs(config.envs);
+        proc.set_workdir(config.workdir);
+        proc.set_redirection(config.stdin_file, config.stdout_file,
                                    config.stderr_file);
-        proc.first.set_stoptime(config.stopsecs);
-        proc.first.set_umask(config.mask);
+        proc.set_stoptime(config.stopsecs);
+        proc.set_umask(config.mask);
     }
     if (config.autostart) start();
+}
+
+void task::exec()
+{
+    try {
+        for (auto &proc: *this) proc.start();
+    } catch (const exception &e) {
+        for (auto &proc: *this) proc.start();
+        state.state = task_status::FATAL;
+        throw runtime_error(e.what());
+    }
+    state.starttime = time(nullptr);
+    state.starttries++;
+    state.state = task_status::STARTING;
 }
 
 void task::start()
 {
     clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    for (size_t i = 0; i < config.numprocs; ++i)
-        start(i);
+    if (state.state == task_status::UNKNOWN)
+        throw runtime_error("fatal error");
+    if (state.state == task_status::FATAL)
+        throw runtime_error("process error");
+    if (state.state == task_status::STARTING ||
+        state.state == task_status::RUNNING )
+        throw runtime_error("process already started");
+    state.starttries = 0;
+    exec();
 }
 
-void task::start(size_t index)
+//void task::start(size_t index)
+//{
+//    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
+//    // XXX check?
+//    if (index >= processes.size()) return;
+//    update(index);
+//    processes[index].first.start();
+//    processes[index].second.state = task_status::STARTING;
+//    processes[index].second.starttime = time(nullptr);
+//    processes[index].second.starttries++;
+//}
+
+void task::kill(int signal)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    // XXX check?
-    if (index >= processes.size()) return;
-    update(index);
-    processes[index].first.start();
-    processes[index].second.state = task_status::STARTING;
-    processes[index].second.starttime = time(nullptr);
-    processes[index].second.starttries++;
+    for (auto &proc: *this) proc.stop(signal);
 }
 
 void task::stop()
 {
     clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    for (size_t i = 0; i < config.numprocs; ++i)
-        stop(i);
+    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
+    kill(config.stopsignal);
+    state.state = task_status::STOPPED;
+    state.starttries = 0;
+    state.starttime = 0;
+//    for (size_t i = 0; i < config.numprocs; ++i)
+//        stop(i);
 }
 
-void task::stop(size_t index)
-{
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    if (index >= processes.size()) return;
-    processes[index].first.stop(config.stopsignal);
-    processes[index].second.state = task_status::STOPPED;
-    processes[index].second.starttries = 0;
-}
+//void task::stop(size_t index)
+//{
+//    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
+//    if (index >= processes.size()) return;
+//    processes[index].first.stop(config.stopsignal);
+//    processes[index].second.state = task_status::STOPPED;
+//    processes[index].second.starttries = 0;
+//}
 
 void task::restart()
 {
@@ -101,71 +133,62 @@ void task::restart()
     stop();
     start();
 }
-
-void task::restart(size_t index)
+string task::status()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    if (index >= processes.size()) return;
-    stop(index);
-    start(index);
+    string s(config.name + ":\n");
+    s += "    state: " + _states_map[state.state] + "\n";
+    if (state.state == task_status::STARTING ||
+        state.state == task_status::RUNNING) {
+        s += string("    starttime: ") + ctime(&state.starttime);
+        s += string("    starttries: ") + to_string(state.starttries) + "\n";
+    }
+    return s;
 }
 
-bool task::update()
+void task::update()
 {
     clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    bool res = false;
-    for (size_t i = 0; i < config.numprocs; ++i)
-        res |= update(i);
-    return res;
-}
+    auto s = state.state;
+    if (s != task_status::STARTING && s != task_status::RUNNING) return;
 
-bool task::update(size_t index)
-{
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    if (index >= processes.size()) return false;
-    auto state = processes[index].second.state;
-    if (state != task_status::STARTING && state != task_status::RUNNING) return false;
+    if (time(nullptr) - state.starttime >= config.startsecs)
+        state.state = task_status::RUNNING;
 
-    if (time(nullptr) - processes[index].second.starttime >= config.startsecs)
-        processes[index].second.state = task_status::RUNNING;
-
-    if (processes[index].first.is_exist())
-        return processes[index].second.state != state;
-
-    // Process died
-    if (state == task_status::STARTING) {
-        if (processes[index].second.starttries < config.startretries) {
-            start(index);
-        } else {
-            processes[index].second.state = task_status::FATAL;
-            processes[index].second.starttries = 0;
-        }
-    } else if (state == task_status::RUNNING) {
-        if (config.autorestart == task_config::TRUE) {
-            start(index);
-        } else if (config.autorestart == task_config::UNEXPECTED &&
-                   !is_exited_normally(index)) {
-            start(index);
-        } else {
-            processes[index].second.state = task_status::EXITED;
-            processes[index].second.starttries = 0;
+    for (auto p : *this) {
+        p.update();
+        if (p.is_exist()) continue; // Process running
+        // Process died
+        task::kill(SIGKILL); // Kill other processes
+        if (s == task_status::STARTING) { // FATAL or restart
+            if (state.starttries < config.startretries) {
+                task::exec(); // Restart processes
+            } else {
+                state.state = task_status::FATAL; // State FATAL
+            }
+        } else { // EXITED or restart
+            if ((config.autorestart == task_config::TRUE) ||
+                (config.autorestart == task_config::UNEXPECTED &&
+                       !is_exited_normally(p))) {
+                state.state = task_status::EXITED;
+                task::start();
+            } else {
+                state.state = task_status::EXITED;
+            }
         }
     }
-    return processes[index].second.state != state;
 }
 
 // Returns true if the process completed successfully or was stopped by the user
-bool task::is_exited_normally(size_t index)
+bool task::is_exited_normally(proc::process p)
 {
-    if (!processes[index].first.is_exited())
-        return false;
-    // XXX
-//    if (processes[index].first.is_signaled() &&
-//        processes[index].first.get_termsignal() == config.stopsignal)
-//        return true;
+    if (!p.is_exited()) return false;
     return std::find(config.exitcodes.begin(), config.exitcodes.end(),
-                     processes[index].first.get_exitcode()) != config.exitcodes.cend();
+                     p.get_exitcode()) != config.exitcodes.cend();
 }
+
+/*
+ * YAML Parser
+ */
 
 static unordered_map<string, void (*)(const YAML::Node &, task_config &)> _read_funcs_map = {
     {"prog",         _config_read_prog},

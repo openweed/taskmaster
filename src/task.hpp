@@ -18,45 +18,33 @@ std::vector<task_config> tconfs_from_yaml(const std::string &file);
 
 struct task_config
 {
-    task_config();
+    task_config() = default;
     std::string name;
     std::string bin;
     std::vector<std::string> args;
     std::vector<std::string> envs;
-    size_t numprocs;
-    mode_t mask;
-    std::string workdir;
-    bool autostart;
+    size_t numprocs = 1;
+    mode_t mask = 022;
+    std::string workdir = "/";
+    bool autostart = false;
     enum {
         FALSE,
         UNEXPECTED,
         TRUE
-    } autorestart;
-    std::vector<int> exitcodes;
-    size_t startretries;
-    time_t startsecs;
-    int stopsignal;
-    time_t stopsecs;
-    std::string stdin_file;
-    std::string stdout_file;
-    std::string stderr_file;
+    } autorestart = FALSE;
+    std::vector<int> exitcodes = {0};
+    size_t startretries = 0;
+    time_t startsecs = 5;
+    int stopsignal = SIGTERM;
+    time_t stopsecs = 10;
+    std::string stdin_file = "/dev/null";
+    std::string stdout_file = "/dev/null";
+    std::string stderr_file = "/dev/null";
 };
-
-const int              DEFAULT_NUMPROC = 1;
-const int              DEFAULT_MASK = 022;
-const std::string      DEFAULT_WORKDIR = std::string("/");
-const bool             DEFAULT_AUTOSTART = false;
-const auto             DEFAULT_AUTORESTART = task_config::FALSE;
-const std::vector<int> DEFAULT_EXIT_CODES = std::vector<int>({0});
-const size_t           DEFAULT_STARTRETRIES = 0;
-const time_t           DEFAULT_TIMETOSTART = 5;
-const int              DEFAULT_STOPSIG = SIGTERM;
-const time_t           DEFAULT_STOPTIME = 10;
-const std::string      DEFAULT_REDIR = std::string("/dev/null");
 
 struct task_status
 {
-    task_status();
+    task_status() = default;
     enum {
         STOPPED,
         STARTING,
@@ -64,28 +52,26 @@ struct task_status
         EXITED,
         FATAL,
         UNKNOWN
-    } state;
-    size_t starttries;
-    time_t starttime;
+    } state = STOPPED;
+    size_t starttries = 0;
+    time_t starttime = 0;
 };
 
-class task
+class task : private std::vector<proc::process>
 {
 public:
-    task(const task_config &configuration);
+    task(const task_config &tconf);
     void start();
-    void start(size_t index);
     void stop();
-    void stop(size_t index);
     void restart();
-    void restart(size_t index);
-    void status();
-    bool update();
-    bool update(size_t index);
+    std::string status();
+    void update();
 private:
-    bool is_exited_normally(size_t index);
+    void exec();
+    void kill(int signal = SIGKILL);
+    bool is_exited_normally(proc::process p);
     struct task_config config;
-    std::vector<std::pair<proc::process, struct task_status>> processes;
+    struct task_status state;
 };
 
 //} // namespace tasks

@@ -20,8 +20,7 @@ constexpr int          TCLI_RCVTIMEO = 1000;
 class communication : public master, private zmq::context_t, zmq::socket_t, zmq::monitor_t
 {
 private:
-    enum class msg_type : int
-    {
+    enum class msg_type : int {
         MIN_REQ = 0,
         REQ_START = MIN_REQ,
         REQ_STOP,
@@ -47,14 +46,14 @@ public:
     ~communication();
     void run_master();
 
-    virtual void start(const std::string &name);
-    virtual void stop(const std::string &name);
-    virtual void restart(const std::string &name);
+    virtual std::string start(const std::string &name);
+    virtual std::string stop(const std::string &name);
+    virtual std::string restart(const std::string &name);
     // An empty name returns the status of all programs
-    virtual std::vector<task_status> status(const std::string &name);
+    virtual std::string status(const std::string &name);
     // An empty name uses old config
-    virtual void reload_config(const std::string &file);
-    virtual void exit();
+    virtual std::string reload_config(const std::string &file);
+    virtual std::string exit();
 private:
     std::unique_ptr<msg_hdr, void(*)(msg_hdr *)>
     get_raw_msg(std::size_t content_size);
@@ -70,7 +69,7 @@ private:
     virtual void on_event_connected(const zmq_event_t &event_, const char* addr_);
     virtual void on_event_disconnected(const zmq_event_t &event_, const char* addr_);
     size_t send_req(const std::string &name, msg_type req);
-    void get_reply();
+    std::string get_reply();
 
     // Master members
     taskmaster *master = nullptr;
@@ -79,7 +78,7 @@ private:
     void rep_stop(const std::string &name);
     void rep_restart(const std::string &name);
     void rep_status(const std::string &name);
-    void rep_reload_config(const std::string &name);
+    void rep_reload_config(const std::string &file);
     void rep_exit();
 };
 

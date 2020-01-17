@@ -4,57 +4,87 @@
 #include <string>
 #include <unordered_map>
 #include <exception>
-#include <yaml-cpp/yaml.h>
+
+#include <csignal>
 
 #include "taskmaster.hpp"
 
 using namespace std;
+
+taskmaster *taskmaster::master_p = nullptr;
+
+taskmaster::taskmaster(const std::string &file) : config_file(file)
+{
+    if (master_p) throw runtime_error("You cannot create more "
+                                      "than one taskmaster object!");
+    master_p = this;
+    signal(SIGCHLD, update);
+    load_yaml_config(config_file);
+}
 
 bool taskmaster::load_yaml_config(const string &file)
 {
     config_file = file;
 
     clog << "Config file: " << file << endl;
-
+    clear();
     auto tconfigs = tconfs_from_yaml(file);
     for (auto i : tconfigs) print_config(i, cout);
     for (auto t : tconfigs) emplace(t.name, t);
     return (configured = true);
 }
 
-void taskmaster::start(const std::string &name)
+string taskmaster::start(const std::string &name)
 {
-    cout << "taskmaster: start called for " << name << endl;
+    auto t = find(name);
+    if (t == end()) throw runtime_error("no such task");
+    t->second.start();
+    return name + ": started";
 }
 
-void taskmaster::stop(const std::string &name)
+string taskmaster::stop(const std::string &name)
 {
     auto t = find(name);
     if (t == end()) throw runtime_error("no such task");
     t->second.stop();
-    cout << "taskmaster: stop called for " << name << endl;
+    return name + ": stopped";
 }
 
-void taskmaster::restart(const std::string &name)
+string taskmaster::restart(const std::string &name)
 {
-    cout << "taskmaster: restart called for " << name << endl;
+    auto t = find(name);
+    if (t == end()) throw runtime_error("no such task");
+    t->second.restart();
+    return name + ": restarted";
 }
 
 // An empty name returns the status of all programs
-std::vector<task_status> taskmaster::status(const std::string &name)
+string taskmaster::status(const std::string &name)
 {
-    cout << "taskmaster: status called for " << (name.empty() ? "all" : name) <<
-            endl;
-    return {};
+    auto t = find(name);
+    taskmaster::update(SIGCHLD);
+    if (t != end()) return "status:\n" + t->second.status();
+    if (empty()) return "no tasks\n";
+
+    string s("status:\n");
+    for (auto p : *this) {
+        s += p.second.status();
+    }
+    return s;
 }
 
-void taskmaster::reload_config(const string &file)
+string taskmaster::reload_config(const string &file)
 {
-    cout << "taskmaster: reload config called for file: " <<
-            (file.empty() ? "old file" : file) << endl;
+    load_yaml_config(file.empty() ? config_file : file);
+    return "config " + (file.empty() ? config_file : file) + " loaded";
 }
 
-void taskmaster::exit()
+string taskmaster::exit()
 {
-    cout << "taskmaster: exit called" << endl;
+    std::exit(EXIT_SUCCESS);
+}
+
+void taskmaster::update(int /*signal*/)
+{
+    for (auto t : *master_p) t.second.update();
 }

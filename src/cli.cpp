@@ -1,6 +1,8 @@
 #include "cli.hpp"
 
-static std::unordered_map<std::string, cmd_types> _cmd_map = {
+using namespace std;
+
+static unordered_map<string, cmd_types> _cmd_map = {
         {"start",         CMD_START},
         {"stop",          CMD_STOP},
         {"restart",       CMD_RESTART},
@@ -11,15 +13,15 @@ static std::unordered_map<std::string, cmd_types> _cmd_map = {
 
 int cli::run()
 {
-    for (std::string line; (std::cout << CLI_PROMPT, std::getline(std::cin, line));) {
-        std::istringstream cmd_stream(line);
-        std::string cmd;
+    for (string line; (cout << CLI_PROMPT, getline(cin, line));) {
+        istringstream cmd_stream(line);
+        string cmd;
         if (!(cmd_stream >> cmd)) continue;
 
         auto cmd_type = _cmd_map.find(cmd);
         if (cmd_type == _cmd_map.end()) {
-            std::cerr << "Unknown command: " << cmd << std::endl << CLI_USAGE
-                   << std::flush;
+            cerr << "Unknown command: " << cmd << endl << CLI_USAGE
+                   << flush;
             continue;
         }
 
@@ -43,66 +45,96 @@ int cli::run()
             cmd_exit(cmd_stream);
             break;
         default:
-            std::cerr << "Unknown error while parsing command." << std::endl;
+            cerr << "Unknown error while parsing command." << endl;
         }
     }
     return 0;
 }
 
-void cli::cmd_start(std::istringstream &args)
+void cli::cmd_start(istringstream &args)
 {
-    std::string name;
+    string name;
     if (!(args >> name)) {
-        std::cerr << "Usage: start NAME" << std::endl;
+        cerr << "Usage: start NAME" << endl;
         return;
     }
-    worker.start(name);
+    try {
+        auto res = worker.start(name);
+        if(!res.empty()) cout << res << endl;
+    } catch (const exception &e) {
+        cerr << name << ": error: " << e.what() << endl;
+    }
 }
 
-void cli::cmd_stop(std::istringstream &args)
+void cli::cmd_stop(istringstream &args)
 {
-    std::string name;
+    string name;
     if (!(args >> name)) {
-        std::cerr << "Usage: stop NAME" << std::endl;
+        cerr << "Usage: stop NAME" << endl;
         return;
     }
-    worker.stop(name);
+    try {
+        auto res = worker.stop(name);
+        if(!res.empty()) cout << res << endl;
+    } catch (const exception &e) {
+        cerr << name << ": error: " << e.what() << endl;
+    }
 }
 
-void cli::cmd_restart(std::istringstream &args)
+void cli::cmd_restart(istringstream &args)
 {
-    std::string name;
+    string name;
     if (!(args >> name)) {
-        std::cerr << "Usage: restart NAME" << std::endl;
+        cerr << "Usage: restart NAME" << endl;
         return;
     }
-    worker.restart(name);
+    try {
+        auto res = worker.restart(name);
+        if(!res.empty()) cout << res << endl;
+    } catch (const exception &e) {
+        cerr << name << ": error: " << e.what() << endl;
+    }
 }
 
-void cli::cmd_status(std::istringstream &args)
+void cli::cmd_status(istringstream &args)
 {
-    std::string name;
+    string name;
     args >> name; // empty -> all
-    worker.status(name);
+    try {
+        auto res = worker.status(name);
+        if(!res.empty()) cout << res;
+    } catch (const exception &e) {
+        cerr << name << ": error: " << e.what() << endl;
+    }
 }
 
-void cli::cmd_reload_config(std::istringstream &args)
+void cli::cmd_reload_config(istringstream &args)
 {
-    std::string file;
+    string file;
     args >> file; // empty -> old config
-    worker.reload_config(file);
+    auto res = worker.reload_config(file);
+    try {
+        if(!res.empty()) cout << res << endl;
+    } catch (const exception &e) {
+        cerr << "error: " << e.what() << endl;
+    }
 }
 
-void cli::cmd_exit(std::istringstream &args)
+void cli::cmd_exit(istringstream &args)
 {
-    std::string name;
-    if (!(args >> name)) std::exit(0);
+    string name;
+    if (!(args >> name)) exit(0);
 
     if (name == "daemon") {
-        worker.exit();
+        try {
+            auto res = worker.exit();
+            if(!res.empty()) cout << res << endl;
+        } catch (const exception &e) {
+            cerr << "error: " << e.what() << endl;
+        }
     } else if (name == "cli") {
-        std::exit(0);
+        exit(0);
     } else {
-        std::cerr << std::endl << "Usage: exit [cli|daemon]" << std::endl;
+        cerr << endl << "Usage: exit [cli|daemon]" << endl;
     }
 }

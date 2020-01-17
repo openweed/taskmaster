@@ -71,59 +71,61 @@ void communication::run_master()
     }
 }
 
-void communication::start(const std::string &name)
+string communication::start(const std::string &name)
 {
-    auto raw_msg = get_raw_msg(name.size() + 1);
-    msg_hdr *msg = raw_msg.get();
-
-    msg->type = msg_type::REQ_START;
-    strcpy(msg->data, name.c_str());
-    if (send_msg(msg))
-        get_reply();
+    if (send_req(name, msg_type::REQ_START))
+        return get_reply();
+    return "";
 }
-void communication::stop(const std::string &name)
+
+string communication::stop(const std::string &name)
 {
     if (send_req(name, msg_type::REQ_STOP))
-        get_reply();
-}
-void communication::restart(const std::string &name)
-{
-    if (send_req(name, msg_type::REQ_RESTART))
-        get_reply();
-}
-std::vector<task_status> communication::status(const std::string &name)
-{
-    if (send_req(name, msg_type::REQ_STATUS))
-        get_reply();
-    return {};
-}
-void communication::reload_config(const std::string &file)
-{
-    if (send_req(file, msg_type::REQ_RELOAD_CONFIG))
-        get_reply();
-}
-void communication::exit()
-{
-    if (send_req("", msg_type::REQ_EXIT))
-        get_reply();
+        return get_reply();
+    return "";
 }
 
-void communication::get_reply()
+string communication::restart(const std::string &name)
+{
+    if (send_req(name, msg_type::REQ_RESTART))
+        return get_reply();
+    return "";
+}
+
+string communication::status(const std::string &name)
+{
+    if (send_req(name, msg_type::REQ_STATUS))
+        return get_reply();
+    return "";
+}
+
+string communication::reload_config(const std::string &file)
+{
+    if (send_req(file, msg_type::REQ_RELOAD_CONFIG))
+        return get_reply();
+    return "";
+}
+
+string communication::exit()
+{
+    if (send_req("", msg_type::REQ_EXIT))
+        return get_reply();
+    return "";
+}
+
+string communication::get_reply()
 {
     zmq::message_t reply;
     recv(&reply);
     if (reply.size() < sizeof (msg_hdr)) {
-        cerr << "error: recived incorrect message" << endl;
-        return;
+        return "error: recived incorrect message";
     }
 
     msg_hdr *msg = static_cast<msg_hdr *>(reply.data());
-    if (msg->type == msg_type::REP_REP)
-        cout << "daemon: " << msg->data << endl;
-    else if (msg->type == msg_type::REP_ERR)
-        cerr << "daemon: " << msg->data << endl;
+    if (msg->type == msg_type::REP_REP || msg->type == msg_type::REP_ERR)
+        return string("daemon: ") + msg->data;
     else
-        cerr << "error: recived incorrect message" << endl;
+        return "error: recived incorrect message";
 }
 
 std::unique_ptr<communication::msg_hdr, void(*)(communication::msg_hdr*)>
@@ -205,8 +207,7 @@ void communication::on_event_disconnected(const zmq_event_t &, const char*)
 void communication::rep_start(const std::string &name)
 {
     try {
-        master->start(name);
-        send_rep(name + ": started", msg_type::REP_REP);
+        send_rep(master->start(name), msg_type::REP_REP);
     } catch (const exception &e) {
         send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
@@ -215,8 +216,7 @@ void communication::rep_start(const std::string &name)
 void communication::rep_stop(const std::string &name)
 {
     try {
-        master->stop(name);
-        send_rep(name + ": stopped", msg_type::REP_REP);
+        send_rep(master->stop(name), msg_type::REP_REP);
     } catch (const exception &e) {
         send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
@@ -225,8 +225,7 @@ void communication::rep_stop(const std::string &name)
 void communication::rep_restart(const std::string &name)
 {
     try {
-        master->restart(name);
-        send_rep(name + ": restarted", msg_type::REP_REP);
+        send_rep(master->restart(name), msg_type::REP_REP);
     } catch (const exception &e) {
         send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
@@ -235,24 +234,23 @@ void communication::rep_restart(const std::string &name)
 void communication::rep_status(const std::string &name)
 {
     try {
-        master->restart(name);
+        send_rep(master->status(name), msg_type::REP_REP);
     } catch (const exception &e) {
         send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
     }
 }
 
-void communication::rep_reload_config(const std::string &name)
+void communication::rep_reload_config(const std::string &file)
 {
     try {
-        master->restart(name);
-        send_rep(name + ": started", msg_type::REP_REP);
+        send_rep(master->reload_config(file), msg_type::REP_REP);
     } catch (const exception &e) {
-        send_rep(name + ": error: " + e.what(), msg_type::REP_ERR);
+        send_rep(file + ": error: " + e.what(), msg_type::REP_ERR);
     }
 }
 
 void communication::rep_exit()
 {
-    send_rep("daemon: goodbye", msg_type::REP_REP);
+    send_rep("goodbye", msg_type::REP_REP);
     master->exit();
 }
