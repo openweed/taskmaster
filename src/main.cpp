@@ -11,12 +11,14 @@
 #include "communication.hpp"
 
 //Common defines
-const char *const shortopts = "+hdc";
-static const std::array<option, 5> longopts {
+const char *const shortopts = "+hdcp:a:";
+static const std::array<option, 7> longopts {
     option({"help", no_argument, nullptr, 'h'}),
     option({"daemon", no_argument, nullptr, 'd'}),
-    option({"cli", required_argument, nullptr, 'c'}),
+    option({"cli", no_argument, nullptr, 'c'}),
     option({"logfile", required_argument, nullptr, 1}),
+    option({"port", required_argument, nullptr, 'p'}),
+    option({"address", required_argument, nullptr, 'a'}),
     option({nullptr, 0, nullptr, 0})
 };
 ///
@@ -25,15 +27,16 @@ using namespace std;
 using namespace proc;
 
 string logfile;
-int run_daemon = 0;
-int run_client = 0;
-int run_command = 1;
+bool daemon_mode = 0;
+bool client_mode = 0;
+unsigned int port = 4242;
+string address = "localhost";
 
-void usage(const std::string &progname)
+void usage()
 {
-    cerr << "usage: " << progname << " [-h] [--logfile log_file] -d | --daemon" << endl;
-    cerr << "       " << progname << " [-h] [--logfile log_file] -c | --cli" << endl;
-    cerr << "       " << progname << " [-h] [--logfile log_file] -- cmd" << endl;
+    cerr << "usage: taskmaster [-h] [--logfile log_file] [-d | --daemon]\n"
+            "                  [-c | --cli] [-p port | --port=port]\n"
+            "                  [-a address | --address=address]" << endl;
 }
 
 int parse_opt(int argc, char **argv)
@@ -46,17 +49,23 @@ int parse_opt(int argc, char **argv)
             logfile = optarg;
             break;
         case 'd':                 // -d, --daemon
-            run_command = run_client = 0;
-            run_daemon = 1;
+            client_mode = 0;
+            daemon_mode = 1;
             break;
         case 'c':                 // -c, --cli
-            run_command = run_daemon = 0;;
-            run_client = 1;
+            daemon_mode = 0;;
+            client_mode = 1;
+            break;
+        case 'p':                 // -c, --cli
+            port = stoi(optarg);
+            break;
+        case 'a':                 // -c, --cli
+            address = optarg;
             break;
         case '?':                 // -?, unknown option
-        default:
         case 'h':                 // -h, --help
-            usage(argc ? *argv : "program");
+        default:
+            usage();
             return 1;
         }
     }
@@ -65,65 +74,24 @@ int parse_opt(int argc, char **argv)
 
 int main(int  argc, char *argv[])
 {
-    parse_opt(argc, argv);
-    cout << "Cli:" << run_client << endl;
-    cout << "Daemon:" << run_daemon << endl;
-    if (run_daemon) {
-        taskmaster master("/home/user/Projects/taskmaster/config.yaml");
-
-        communication comm(&master);
-        comm.run_master();
-    } else if (run_client) {
-        communication comm(nullptr);
-
-        cli cmd(comm);
-        cmd.run();
-    } else {
-        taskmaster master;
-        master.load_yaml_config("/home/user/Projects/taskmaster/config.yaml");
-
-        cli cmd(master);
-        cmd.run();
+    try {
+        if (parse_opt(argc, argv)) return 1;
+        if (daemon_mode) {
+            taskmaster master("/home/user/Projects/taskmaster/config.yaml");
+            cout << port << endl;
+            communication comm(&master, port);
+            comm.run_master();
+        } else if (client_mode) {
+            communication comm(nullptr, port, address);
+            cli console(comm);
+            console.run();
+        } else {
+            taskmaster master("/home/user/Projects/taskmaster/config.yaml");
+            cli console(master);
+            console.run();
+        }
+    } catch (const exception &e) {
+        cerr << "fatal error: " << e.what() << endl;
     }
-
     return 0;
 }
-
-////    cout << "Hello World!" << endl;
-
-////    if (parse_opt(argc, argv)) exit(1);
-////    cout << "daemon:" << as_daemon << endl;
-////    cout << "cli:" << as_cli << endl;
-////    cout << "log:" << logfile << endl;
-
-////    process proc("/bin/ls");
-////    proc.set_args({"-l", "-R"});
-////    proc.set_workdir("/var/log");
-//////    proc.set_workdir("/");
-////    proc.set_redirection("", "/tmp/ls.out", "/tmp/ls.err");
-////    proc.start();
-////    sleep(2);
-////    proc.stop();
-////    cout << "Next" << endl;
-////    proc.start();
-////    while (proc.is_exist()) proc.update();
-
-//    tasks::task_config config;
-//    config.name = "ls";
-//    config.bin = "/bin/ls";
-//    config.args = {"-l", "-R"};
-////    config.directory = "/home/user";
-//    config.directory = "/var/log";
-//    config.stdout_file = "/tmp/ls.out";
-//    config.stderr_file = "/tmp/ls.err";
-////    config.numproc = 10;
-
-//    tasks::task ps(config);
-//    ps.start();
-//    sleep(2);
-//    ps.start();
-
-////    sleep(11);
-//    wait(nullptr);
-//    wait(nullptr);
-//    wait(nullptr);

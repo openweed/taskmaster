@@ -95,14 +95,13 @@ process& process::operator=(process &&other) noexcept
 
 pid_t process::start()
 {
+    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (is_exist()) return pid;
     if (access(bin.c_str(), X_OK)) {
         state = process_state::ERROR;
         throw runtime_error(string("failed to start the process") +
                             strerror(errno));
     }
-
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if ((pid = fork()) > 0) {
         state = process_state::RUNNING;
         return pid;
@@ -124,18 +123,23 @@ pid_t process::start()
 
 void process::stop(int sig) noexcept
 {
+    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     // If the process is not launched, then return
     if (!is_exist()) return;
     signal(sig);
     state = process_state::TERMINATED;
     termsig = sig;
+    if (sig == SIGKILL) {
+        update(true);
+        return;
+    }
     std::function<void(pid_t, time_t)> termfunc = [](pid_t pid, time_t stoptime) {
         sleep(stoptime);
         kill(pid, SIGKILL);
     };
     std::thread termthread(termfunc, pid, stoptime);
     termthread.detach();
-    waitpid(pid, nullptr, 0);
+    update(true);
 }
 
 // Returns true if state changed
@@ -162,12 +166,12 @@ bool process::update(bool wait)
     } else {
         state = process_state::TERMINATED;
     }
-    cout << "update state: " << static_cast<int>(state) << endl;
     return true;
 }
 
 int process::signal(int sig)
 {
+    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (!is_exist()) {
         errno = ESRCH;
         return -1;

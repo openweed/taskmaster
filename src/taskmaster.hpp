@@ -24,7 +24,7 @@ public:
     virtual std::string reload_config(const std::string &file);
     virtual std::string exit();
 private:
-    static void update(int signal);
+    static void update(int signal = SIGCHLD);
     static taskmaster *master_p;
     bool configured = false;
     std::string config_file;

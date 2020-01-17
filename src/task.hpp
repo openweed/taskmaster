@@ -9,8 +9,6 @@
 
 #include "process.hpp"
 
-// XXX need copy and move constructors
-//namespace tasks {
 struct task_config;
 
 void print_config(const task_config &tconf, std::ostream &stream);
@@ -51,6 +49,7 @@ struct task_status
         RUNNING,
         EXITED,
         FATAL,
+        ERROR,
         UNKNOWN
     } state = STOPPED;
     size_t starttries = 0;
@@ -69,12 +68,9 @@ public:
 private:
     void exec();
     void kill(int signal = SIGKILL);
-    bool is_exited_normally(proc::process p);
+    bool is_exited_normally(proc::process &p);
     struct task_config config;
     struct task_status state;
 };
-
-//} // namespace tasks
-
 
 #endif // TASK_HPP

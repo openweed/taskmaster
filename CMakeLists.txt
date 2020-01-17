@@ -42,7 +42,6 @@ add_executable(${PROJECT_NAME}
                src/main.cpp
                src/process.cpp
                src/task.cpp
-               src/master.cpp
                src/taskmaster.cpp
                src/communication.cpp
                src/cli.cpp

@@ -17,6 +17,7 @@ communication::communication(taskmaster *master_p, unsigned int port,
         try {
             bind("tcp://*:" + to_string(port));
             connected = true;
+            clog << "The daemon is running on port " << to_string(port) << endl;
         } catch (const exception &e) {
             clog << "Connection initialization error: " << e.what() << endl <<
                     "The program will run in uncontrolled mode." << endl;
@@ -40,7 +41,6 @@ communication::~communication()
 
 void communication::run_master()
 {
-    clog << "The daemon is running on port " << to_string(TDAEMON_PORT) << endl;
     while (true) {
         zmq::message_t request;
         recv(&request);

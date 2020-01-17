@@ -6,6 +6,7 @@
 #include <map>
 #include <exception>
 #include <yaml-cpp/yaml.h>
+#include <sstream>
 
 #include <ctime>
 
@@ -24,6 +25,7 @@ static map<int, string> _states_map = {
     {task_status::RUNNING,  "running"},
     {task_status::EXITED,   "exited"},
     {task_status::FATAL,    "fatal"},
+    {task_status::ERROR,    "process start error"},
     {task_status::UNKNOWN,  "unknown (fatal error)"}
 };
 
@@ -47,8 +49,6 @@ static void _config_read_env(const YAML::Node &param, task_config &tconf);
 task::task(const task_config &tconf) : config(tconf)
 {
     resize(config.numprocs, config.bin);
-//    processes.resize(config.numprocs,
-//                     make_pair(proc::process(config.bin), task_status()));
     for (auto &proc: *this) {
         proc.set_args(config.args);
         proc.set_envs(config.envs);
@@ -63,11 +63,12 @@ task::task(const task_config &tconf) : config(tconf)
 
 void task::exec()
 {
+    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     try {
         for (auto &proc: *this) proc.start();
     } catch (const exception &e) {
-        for (auto &proc: *this) proc.start();
-        state.state = task_status::FATAL;
+        for (auto &proc: *this) proc.stop();
+        state.state = task_status::ERROR;
         throw runtime_error(e.what());
     }
     state.starttime = time(nullptr);
@@ -80,7 +81,7 @@ void task::start()
     clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (state.state == task_status::UNKNOWN)
         throw runtime_error("fatal error");
-    if (state.state == task_status::FATAL)
+    if (state.state == task_status::ERROR)
         throw runtime_error("process error");
     if (state.state == task_status::STARTING ||
         state.state == task_status::RUNNING )
@@ -89,43 +90,20 @@ void task::start()
     exec();
 }
 
-//void task::start(size_t index)
-//{
-//    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-//    // XXX check?
-//    if (index >= processes.size()) return;
-//    update(index);
-//    processes[index].first.start();
-//    processes[index].second.state = task_status::STARTING;
-//    processes[index].second.starttime = time(nullptr);
-//    processes[index].second.starttries++;
-//}
-
 void task::kill(int signal)
 {
+    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     for (auto &proc: *this) proc.stop(signal);
 }
 
 void task::stop()
 {
     clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     kill(config.stopsignal);
     state.state = task_status::STOPPED;
     state.starttries = 0;
     state.starttime = 0;
-//    for (size_t i = 0; i < config.numprocs; ++i)
-//        stop(i);
 }
-
-//void task::stop(size_t index)
-//{
-//    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-//    if (index >= processes.size()) return;
-//    processes[index].first.stop(config.stopsignal);
-//    processes[index].second.state = task_status::STOPPED;
-//    processes[index].second.starttries = 0;
-//}
 
 void task::restart()
 {
@@ -135,42 +113,59 @@ void task::restart()
 }
 string task::status()
 {
-    string s(config.name + ":\n");
-    s += "    state: " + _states_map[state.state] + "\n";
+    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
+    ostringstream s;
+    s << config.name << ":\n";
+    s << "  state: " << _states_map[state.state] + "\n";
     if (state.state == task_status::STARTING ||
         state.state == task_status::RUNNING) {
-        s += string("    starttime: ") + ctime(&state.starttime);
-        s += string("    starttries: ") + to_string(state.starttries) + "\n";
+        s << "  starttime: " << ctime(&state.starttime) <<
+             "  run time: " << time(nullptr) - state.starttime << endl <<
+             "  starttries: " << state.starttries << endl <<
+             "  procs:" << endl;
+        size_t i = 0;
+        for (auto &p : *this) {
+            s << "    " << i++ << ":" << endl;
+            if (p.is_exist()) {
+                s << "      state: running" << endl;
+                s << "      pid: " << p.get_pid() << endl;
+            } else {
+                s << "      state: not running" << endl;
+                if (p.is_exited())
+                    s << "      exitcode: " << p.get_exitcode() << endl;
+            }
+        }
     }
-    return s;
+    return s.str();
 }
 
 void task::update()
 {
     clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
-    auto s = state.state;
-    if (s != task_status::STARTING && s != task_status::RUNNING) return;
+    if (state.state != task_status::STARTING &&
+        state.state != task_status::RUNNING)
+        return;
 
+    cout << "run time: " << time(nullptr) - state.starttime << endl;
     if (time(nullptr) - state.starttime >= config.startsecs)
         state.state = task_status::RUNNING;
 
-    for (auto p : *this) {
+    for (auto &p : *this) {
         p.update();
         if (p.is_exist()) continue; // Process running
         // Process died
-        task::kill(SIGKILL); // Kill other processes
-        if (s == task_status::STARTING) { // FATAL or restart
+        if (state.state == task_status::STARTING) { // go FATAL or restart
             if (state.starttries < config.startretries) {
+                task::kill(SIGKILL); // Kill other processes
                 task::exec(); // Restart processes
             } else {
                 state.state = task_status::FATAL; // State FATAL
             }
-        } else { // EXITED or restart
+        } else { // go EXITED or restart
             if ((config.autorestart == task_config::TRUE) ||
                 (config.autorestart == task_config::UNEXPECTED &&
                        !is_exited_normally(p))) {
-                state.state = task_status::EXITED;
-                task::start();
+                p.start();
             } else {
                 state.state = task_status::EXITED;
             }
@@ -179,8 +174,9 @@ void task::update()
 }
 
 // Returns true if the process completed successfully or was stopped by the user
-bool task::is_exited_normally(proc::process p)
+bool task::is_exited_normally(proc::process &p)
 {
+    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (!p.is_exited()) return false;
     return std::find(config.exitcodes.begin(), config.exitcodes.end(),
                      p.get_exitcode()) != config.exitcodes.cend();
@@ -252,7 +248,7 @@ static void _config_read_prog(const YAML::Node &param, task_config &tconf)
 }
 static void _config_read_args(const YAML::Node &param, task_config &tconf)
 {
-    for (auto arg : param) tconf.args.push_back(arg.as<string>());
+    for (auto &arg : param) tconf.args.push_back(arg.as<string>());
 }
 static void _config_read_numprocs(const YAML::Node &param, task_config &tconf)
 {
@@ -280,6 +276,7 @@ static void _config_read_autorestart(const YAML::Node &param, task_config &tconf
 }
 static void _config_read_exitcodes(const YAML::Node &param, task_config &tconf)
 {
+    tconf.exitcodes.clear();
     for (auto code : param) tconf.exitcodes.push_back(code.as<int>());
 }
 static void _config_read_startretries(const YAML::Node &param, task_config &tconf)
@@ -312,8 +309,8 @@ static void _config_read_stderr(const YAML::Node &param, task_config &tconf)
 }
 static void _config_read_env(const YAML::Node &param, task_config &tconf)
 {
-    for (auto env : param) tconf.envs.push_back(env.first.as<string>() + "=" +
-                                                env.second.as<string>());
+    for (auto &env : param) tconf.envs.push_back(env.first.as<string>() + "=" +
+                                                 env.second.as<string>());
 }
 
 vector<task_config> tconfs_from_yaml(const std::string &file)
@@ -328,6 +325,9 @@ vector<task_config> tconfs_from_yaml(const std::string &file)
             task_config tconf;
 
             tconf.name = prog->first.as<std::string>();
+            if (any_of(task_cfgs.begin(), task_cfgs.end(),
+                [&tconf](const task_config &c){return tconf.name == c.name;}))
+                throw runtime_error("duplicate name: " + tconf.name);
             YAML::Node &params = prog->second;
             for (auto param = params.begin(); param != params.end(); ++param) {
                 const string &param_name(param->first.as<string>());
@@ -341,16 +341,11 @@ vector<task_config> tconfs_from_yaml(const std::string &file)
             task_cfgs.push_back(tconf);
         }
         return task_cfgs;
-    } catch (const YAML::BadFile &e) {
-        clog << "Error while loading configuration file: " << file << ": " <<
-                e.what() << endl <<
-                "Configuration aborted, run reload config to retry." << endl;
-    } catch (const YAML::Exception &e) {
-        clog << "Error while parsing configuration file: " << file << ": " <<
-                e.what() << endl <<
-                "Configuration aborted, run reload config to retry." << endl;
+    } catch (const exception &e) {
+        throw runtime_error("Error while parsing configuration file: " + file +
+                            ": " + e.what() + "\n" +
+                            "Configuration aborted, run reload config to retry.");
     }
-    return {};
 }
 
 void print_config(const task_config &tconf, ostream &stream)
@@ -358,9 +353,9 @@ void print_config(const task_config &tconf, ostream &stream)
     stream << "Name: " << tconf.name << endl;
     stream << "    Binary: " << tconf.bin << endl;
     stream << "    Args:" << endl;
-    for (auto i : tconf.args) stream << "        " << i << endl;
+    for (auto &i : tconf.args) stream << "        " << i << endl;
     stream << "    Envs:" << endl;
-    for (auto i : tconf.envs) stream << "        " << i << endl;
+    for (auto &i : tconf.envs) stream << "        " << i << endl;
     stream << "    Numprocs: " << tconf.numprocs << endl;
     stream << "    Umask: 0" << oct << tconf.mask << dec << endl;
     stream << "    Work directory: " << tconf.workdir << endl;
@@ -379,7 +374,7 @@ void print_config(const task_config &tconf, ostream &stream)
         stream << "Error: Autorestart: Unexpected value!" << endl;
     }
     stream << "    Exitcodes:";
-    for (auto i : tconf.exitcodes) stream << " " << i;
+    for (auto &i : tconf.exitcodes) stream << " " << i;
     stream << endl;
     stream << "    Startretries: " << tconf.startretries << endl;
     stream << "    Startseconds: " << tconf.startsecs << endl;
