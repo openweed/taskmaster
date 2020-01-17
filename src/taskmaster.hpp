@@ -5,22 +5,22 @@
 #include <vector>
 #include <unordered_map>
 
-#include "defaults.hpp"
+#include "master.hpp"
 #include "task.hpp"
 
-class taskmaster : public std::unordered_map<std::string, task>
+class taskmaster : public master, private std::unordered_map<std::string, task>
 {
 public:
-    taskmaster();
+    taskmaster() = default;
     bool load_yaml_config(const std::string &file);
-    void start(const std::string &name);
-    void stop(const std::string &name);
-    void restart(const std::string &name);
+    virtual void start(const std::string &name);
+    virtual void stop(const std::string &name);
+    virtual void restart(const std::string &name);
     // An empty name returns the status of all programs
-    std::vector<task_status> status(const std::string &name);
+    virtual std::vector<task_status> status(const std::string &name);
     // An empty name uses old config
-    void reload_config(const std::string &file);
-    void exit();
+    virtual void reload_config(const std::string &file);
+    virtual void exit();
 private:
     bool configured = false;
     std::string config_file;

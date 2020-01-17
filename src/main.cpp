@@ -77,14 +77,13 @@ int main(int  argc, char *argv[])
     } else if (run_client) {
         communication comm(nullptr);
 
-        cli<communication> cmd(comm);
+        cli cmd(comm);
         cmd.run();
-        thread cli_t(&cli<communication>::run, cmd);
     } else {
         taskmaster master;
         master.load_yaml_config("/home/user/Projects/taskmaster/config.yaml");
 
-        cli<taskmaster> cmd(master);
+        cli cmd(master);
         cmd.run();
     }
 

@@ -10,11 +10,6 @@
 
 using namespace std;
 
-taskmaster::taskmaster()
-{
-
-}
-
 bool taskmaster::load_yaml_config(const string &file)
 {
     config_file = file;

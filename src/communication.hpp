@@ -10,13 +10,14 @@
 
 #include <zmq.hpp>
 
+#include "master.hpp"
 #include "taskmaster.hpp"
 
 constexpr unsigned int TDAEMON_PORT = 4242;
 constexpr int          TCLI_SNDTIMEO = 0;
 constexpr int          TCLI_RCVTIMEO = 1000;
 
-class communication : public zmq::context_t, public zmq::socket_t, public zmq::monitor_t
+class communication : public master, private zmq::context_t, zmq::socket_t, zmq::monitor_t
 {
 private:
     enum class msg_type : int
@@ -46,14 +47,14 @@ public:
     ~communication();
     void run_master();
 
-    void start(const std::string &name);
-    void stop(const std::string &name);
-    void restart(const std::string &name);
+    virtual void start(const std::string &name);
+    virtual void stop(const std::string &name);
+    virtual void restart(const std::string &name);
     // An empty name returns the status of all programs
-    std::vector<task_status> status(const std::string &name);
+    virtual std::vector<task_status> status(const std::string &name);
     // An empty name uses old config
-    void reload_config(const std::string &file);
-    void exit();
+    virtual void reload_config(const std::string &file);
+    virtual void exit();
 private:
     std::unique_ptr<msg_hdr, void(*)(msg_hdr *)>
     get_raw_msg(std::size_t content_size);
