@@ -1,46 +1,5 @@
-ls:
-    prog: "/usr/bin/ls"
-    args:
-        - "-lR"
-        - "-a"
-        - "/"
-        - "dsassdd"
-        - "vxc,vnn"
-    numprocs: 1
-    umask: 022
-    workingdir: /home/user
-    autostart: false
-    autorestart: unexpected
-    exitcodes:
-        - 0
-        - 2
-    startretries: 0
-    starttime: 5
-    stopsignal: TERM
-    stoptime: 10
-    stdout: /tmp/ls.out
-    stderr: /tmp/ls.err
-    env:
-        STARTED_BY: taskmaster
-        ANSWER: 42
 s:
     prog: "/usr/bin/sleep"
     args:
-        - "10"
-    numprocs: 1
-    umask: 022
-    workingdir: /home/user
-    autostart: false
-    autorestart: unexpected
-    exitcodes:
-        - 1
-        - 2
-    startretries: 0
-    starttime: 5
-    stopsignal: TERM
-    stoptime: 10
-    stdout: /tmp/ls.out
-    stderr: /tmp/ls.err
-    env:
-        STARTED_BY: taskmaster
-        ANSWER: 42
+        - "1000"
+    autostart: true

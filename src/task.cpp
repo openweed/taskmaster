@@ -63,7 +63,6 @@ task::task(const task_config &tconf) : config(tconf)
 
 void task::exec()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     try {
         for (auto &proc: *this) proc.start();
     } catch (const exception &e) {
@@ -78,7 +77,6 @@ void task::exec()
 
 void task::start()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (state.state == task_status::UNKNOWN)
         throw runtime_error("fatal error");
     if (state.state == task_status::ERROR)
@@ -92,13 +90,11 @@ void task::start()
 
 void task::kill(int signal)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     for (auto &proc: *this) proc.stop(signal);
 }
 
 void task::stop()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     kill(config.stopsignal);
     state.state = task_status::STOPPED;
     state.starttries = 0;
@@ -107,20 +103,18 @@ void task::stop()
 
 void task::restart()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     stop();
     start();
 }
 string task::status()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     ostringstream s;
     s << config.name << ":\n";
     s << "  state: " << _states_map[state.state] + "\n";
     if (state.state == task_status::STARTING ||
         state.state == task_status::RUNNING) {
         s << "  starttime: " << ctime(&state.starttime) <<
-             "  run time: " << time(nullptr) - state.starttime << endl <<
+             "  run time: " << time(nullptr) - state.starttime << "s" << endl <<
              "  starttries: " << state.starttries << endl <<
              "  procs:" << endl;
         size_t i = 0;
@@ -141,15 +135,11 @@ string task::status()
 
 void task::update()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (state.state != task_status::STARTING &&
         state.state != task_status::RUNNING)
         return;
-
-    cout << "run time: " << time(nullptr) - state.starttime << endl;
     if (time(nullptr) - state.starttime >= config.startsecs)
         state.state = task_status::RUNNING;
-
     for (auto &p : *this) {
         p.update();
         if (p.is_exist()) continue; // Process running
@@ -176,7 +166,6 @@ void task::update()
 // Returns true if the process completed successfully or was stopped by the user
 bool task::is_exited_normally(proc::process &p)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (!p.is_exited()) return false;
     return std::find(config.exitcodes.begin(), config.exitcodes.end(),
                      p.get_exitcode()) != config.exitcodes.cend();
@@ -206,34 +195,34 @@ static unordered_map<string, void (*)(const YAML::Node &, task_config &)> _read_
 
 
 static const unordered_map<string, int> _signal_names_map = {
-    {"SIGHUP",    1 }, {"HUP",    1 },
-    {"SIGINT",    2 }, {"INT",    2 },
-    {"SIGQUIT",   3 }, {"QUIT",   3 },
-    {"SIGILL",    4 }, {"ILL",    4 },
-    {"SIGTRAP",   5 }, {"TRAP",   5 },
-    {"SIGABRT",   6 }, {"ABRT",   6 },
-    {"SIGFPE",    8 }, {"FPE",    8 },
-    {"SIGKILL",   9 }, {"KILL",   9 },
-    {"SIGBUS",    10}, {"BUS",    10},
-    {"SIGSEGV",   11}, {"SEGV",   11},
-    {"SIGSYS",    12}, {"SYS",    12},
-    {"SIGPIPE",   13}, {"PIPE",   13},
-    {"SIGALRM",   14}, {"ALRM",   14},
-    {"SIGTERM",   15}, {"TERM",   15},
-    {"SIGUSR1",   16}, {"USR1",   16},
-    {"SIGUSR2",   17}, {"USR2",   17},
-    {"SIGCHLD",   18}, {"CHLD",   18},
-    {"SIGTSTP",   20}, {"TSTP",   20},
-    {"SIGURG",    21}, {"URG",    21},
-    {"SIGPOLL",   22}, {"POLL",   22},
-    {"SIGSTOP",   23}, {"STOP",   23},
-    {"SIGCONT",   25}, {"CONT",   25},
-    {"SIGTTIN",   26}, {"TTIN",   26},
-    {"SIGTTOU",   27}, {"TTOU",   27},
-    {"SIGVTALRM", 28}, {"VTALRM", 28},
-    {"SIGPROF",   29}, {"PROF",   29},
-    {"SIGXCPU",   30}, {"XCPU",   30},
-    {"SIGXFSZ",   31}, {"XFSZ",   31}
+    {"SIGHUP",    SIGHUP   }, {"HUP",    SIGHUP   },
+    {"SIGINT",    SIGINT   }, {"INT",    SIGINT   },
+    {"SIGQUIT",   SIGQUIT  }, {"QUIT",   SIGQUIT  },
+    {"SIGILL",    SIGILL   }, {"ILL",    SIGILL   },
+    {"SIGTRAP",   SIGTRAP  }, {"TRAP",   SIGTRAP  },
+    {"SIGABRT",   SIGABRT  }, {"ABRT",   SIGABRT  },
+    {"SIGFPE",    SIGFPE   }, {"FPE",    SIGFPE   },
+    {"SIGKILL",   SIGKILL  }, {"KILL",   SIGKILL  },
+    {"SIGBUS",    SIGBUS   }, {"BUS",    SIGBUS   },
+    {"SIGSEGV",   SIGSEGV  }, {"SEGV",   SIGSEGV  },
+    {"SIGSYS",    SIGSYS   }, {"SYS",    SIGSYS   },
+    {"SIGPIPE",   SIGPIPE  }, {"PIPE",   SIGPIPE  },
+    {"SIGALRM",   SIGALRM  }, {"ALRM",   SIGALRM  },
+    {"SIGTERM",   SIGTERM  }, {"TERM",   SIGTERM  },
+    {"SIGUSR1",   SIGUSR1  }, {"USR1",   SIGUSR1  },
+    {"SIGUSR2",   SIGUSR2  }, {"USR2",   SIGUSR2  },
+    {"SIGCHLD",   SIGCHLD  }, {"CHLD",   SIGCHLD  },
+    {"SIGTSTP",   SIGTSTP  }, {"TSTP",   SIGTSTP  },
+    {"SIGURG",    SIGURG   }, {"URG",    SIGURG   },
+    {"SIGPOLL",   SIGPOLL  }, {"POLL",   SIGPOLL  },
+    {"SIGSTOP",   SIGSTOP  }, {"STOP",   SIGSTOP  },
+    {"SIGCONT",   SIGCONT  }, {"CONT",   SIGCONT  },
+    {"SIGTTIN",   SIGTTIN  }, {"TTIN",   SIGTTIN  },
+    {"SIGTTOU",   SIGTTOU  }, {"TTOU",   SIGTTOU  },
+    {"SIGVTALRM", SIGVTALRM}, {"VTALRM", SIGVTALRM},
+    {"SIGPROF",   SIGPROF  }, {"PROF",   SIGPROF  },
+    {"SIGXCPU",   SIGXCPU  }, {"XCPU",   SIGXCPU  },
+    {"SIGXFSZ",   SIGXFSZ  }, {"XFSZ",   SIGXFSZ  }
 };
 
 static const unordered_map<string, decltype(task_config::TRUE)> _autorestart_names_map = {
@@ -289,11 +278,16 @@ static void _config_read_starttime(const YAML::Node &param, task_config &tconf)
 }
 static void _config_read_stopsignal(const YAML::Node &param, task_config &tconf)
 {
-    auto it = _signal_names_map.find(param.as<string>());
-    if (it != _signal_names_map.end())
-        tconf.stopsignal = it->second;
-    else
-        throw runtime_error("unexpected value: stopsignal: " + param.as<string>());
+    try {
+        tconf.stopsignal = param.as<int>();
+    } catch (const exception &) {
+        auto it = _signal_names_map.find(param.as<string>());
+        if (it != _signal_names_map.end())
+            tconf.stopsignal = it->second;
+        else
+            throw runtime_error("unexpected value: stopsignal: " +
+                                param.as<string>());
+    }
 }
 static void _config_read_stoptime(const YAML::Node &param, task_config &tconf)
 {

@@ -15,12 +15,10 @@
 #include "process.hpp"
 
 using namespace std;
-
 using namespace proc;
 
 process::process(const string &program_path) : bin(program_path)
 {
-    cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     set_argv();
     set_envp();
 }
@@ -30,14 +28,12 @@ process::process(const process &other) :
     stdin_file(other.stdin_file), stdout_file(other.stdout_file),
     stderr_file(other.stderr_file)
 {
-    cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     set_argv();
     set_envp();
 }
 
 process& process::operator=(const process &other)
 {
-    cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (&other == this) return *this;
     // Stop current process if running
     stop(SIGKILL);
@@ -63,7 +59,6 @@ process::process(process &&other) noexcept:
     pid(other.pid), exitstatus(other.exitstatus), stopsig(other.stopsig),
     termsig(other.termsig)
 {
-    cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     set_argv();
     set_envp();
     // Destructor 'other' must not stop the process
@@ -72,7 +67,6 @@ process::process(process &&other) noexcept:
 
 process& process::operator=(process &&other) noexcept
 {
-    cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     // Stop current process if running
     stop(SIGKILL);
     bin = move(other.bin);
@@ -95,11 +89,10 @@ process& process::operator=(process &&other) noexcept
 
 pid_t process::start()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (is_exist()) return pid;
     if (access(bin.c_str(), X_OK)) {
         state = process_state::ERROR;
-        throw runtime_error(string("failed to start the process") +
+        throw runtime_error(string("failed to start the process: ") +
                             strerror(errno));
     }
     if ((pid = fork()) > 0) {
@@ -123,29 +116,29 @@ pid_t process::start()
 
 void process::stop(int sig) noexcept
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     // If the process is not launched, then return
     if (!is_exist()) return;
     signal(sig);
     state = process_state::TERMINATED;
     termsig = sig;
+    auto stop_pid = pid;
+    pid = 0;
     if (sig == SIGKILL) {
-        update(true);
+        waitpid(stop_pid, nullptr, 0);
         return;
     }
     std::function<void(pid_t, time_t)> termfunc = [](pid_t pid, time_t stoptime) {
         sleep(stoptime);
         kill(pid, SIGKILL);
+        waitpid(pid, nullptr, 0);
     };
-    std::thread termthread(termfunc, pid, stoptime);
+    std::thread termthread(termfunc, stop_pid, stoptime);
     termthread.detach();
-    update(true);
 }
 
 // Returns true if state changed
 bool process::update(bool wait)
 {
-    cout << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (!is_exist()) return false;
     int status;
     pid_t res;
@@ -171,7 +164,6 @@ bool process::update(bool wait)
 
 int process::signal(int sig)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (!is_exist()) {
         errno = ESRCH;
         return -1;

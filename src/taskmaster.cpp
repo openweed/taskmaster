@@ -15,7 +15,6 @@ taskmaster *taskmaster::master_p = nullptr;
 
 taskmaster::taskmaster(const std::string &file) : config_file(file)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     if (master_p) throw runtime_error("You cannot create more "
                                       "than one taskmaster object!");
     master_p = this;
@@ -25,24 +24,23 @@ taskmaster::taskmaster(const std::string &file) : config_file(file)
     } catch (const exception &e) {
         clog << e.what() << endl;
     }
+    clog << "Taskmaster started" << endl;
 }
 
 bool taskmaster::load_yaml_config(const string &file)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     config_file = file;
 
     clog << "Config file: " << file << endl;
     clear();
     auto tconfigs = tconfs_from_yaml(file);
-    for (auto &i : tconfigs) print_config(i, cout);
+    for (auto &i : tconfigs) print_config(i, clog);
     for (auto &t : tconfigs) emplace(t.name, t);
     return (configured = true);
 }
 
 string taskmaster::start(const std::string &name)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     auto t = find(name);
     if (t == end()) throw runtime_error("no such task");
     t->second.start();
@@ -51,7 +49,6 @@ string taskmaster::start(const std::string &name)
 
 string taskmaster::stop(const std::string &name)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     auto t = find(name);
     if (t == end()) throw runtime_error("no such task");
     t->second.stop();
@@ -60,7 +57,6 @@ string taskmaster::stop(const std::string &name)
 
 string taskmaster::restart(const std::string &name)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     auto t = find(name);
     if (t == end()) throw runtime_error("no such task");
     t->second.restart();
@@ -70,7 +66,6 @@ string taskmaster::restart(const std::string &name)
 // An empty name returns the status of all programs
 string taskmaster::status(const std::string &name)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     taskmaster::update();
     if (name.empty()) {
         string s("status:\n");
@@ -88,7 +83,6 @@ string taskmaster::status(const std::string &name)
 
 string taskmaster::reload_config(const string &file)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     try {
         load_yaml_config(file.empty() ? config_file : file);
     } catch (const exception &e) {
@@ -99,12 +93,11 @@ string taskmaster::reload_config(const string &file)
 
 string taskmaster::exit()
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
     std::exit(EXIT_SUCCESS);
 }
 
 void taskmaster::update(int /*signal*/)
 {
-    clog << static_cast<const char *>(__PRETTY_FUNCTION__) << endl;
+    if (!master_p) return;
     for (auto &t : *master_p) t.second.update();
 }
